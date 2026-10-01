@@ -1,6 +1,8 @@
-# Next.js template
+# ESD_NYSTAR_Summit
 
-This is a Next.js template with shadcn/ui.
+App for NYSTAR Summit '26 - display NYSTAR network and add collaborators.
+
+Built with Next.js and shadcn/ui.
 
 ## Adding components
 
