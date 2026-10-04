@@ -26,6 +26,7 @@
     --color-destructive: var(--destructive);
     --color-brand-blue: var(--brand-blue);
     --color-brand-yellow: var(--brand-yellow);
+    --color-brand-gray: var(--brand-gray);
     --color-accent-foreground: var(--accent-foreground);
     --color-accent: var(--accent);
     --color-muted-foreground: var(--muted-foreground);
@@ -65,6 +66,7 @@
     --accent: oklch(0.97 0 0);
     --brand-blue: #0b5d66;
     --brand-yellow: #f7bf53;
+    --brand-gray: #e1e1e1;
     --accent-foreground: oklch(0.205 0 0);
     --destructive: oklch(0.577 0.245 27.325);
     --border: oklch(0.922 0 0);
@@ -90,7 +92,7 @@
   --network-ink: #203b35;
   --network-accent: #b84e37;
   --network-paper: #f7f7f2;
-  --network-map-bg: #e7ece8;
+  --network-map-bg: var(--brand-gray);
 }
 
 .dark {
@@ -147,6 +149,7 @@ body {
 }
 
 body {
+  position: relative;
   min-height: 100svh;
 }
 
@@ -163,7 +166,9 @@ body {
 .network-sidebar {
   position: relative;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
   padding: 32px;
   border-right: 1px solid #d9ded9;
   background: var(--network-paper);
@@ -307,11 +312,12 @@ body {
 @media (max-width: 700px) {
   .network-screen {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 72px minmax(0, 1fr);
+    grid-template-rows: 112px minmax(0, 1fr);
   }
 
   .network-sidebar {
-    padding: 0 20px;
+    gap: 10px;
+    padding: 12px 16px 12px 20px;
     border-right: 0;
     border-bottom: 1px solid #d9ded9;
   }
@@ -322,6 +328,13 @@ body {
   }
 
   .network-sidebar__title {
-    font-size: 21px;
+    font-size: 19px;
+  }
+
+  .network-add-trigger {
+    min-height: 34px;
+    align-self: flex-start;
+    padding-inline: 10px;
+    font-size: 12px;
   }
 }
