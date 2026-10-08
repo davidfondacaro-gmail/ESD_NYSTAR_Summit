@@ -141,6 +141,27 @@
     }
 }
 
+  @utility drawer-field-label {
+    @apply text-xs font-medium text-muted-foreground;
+  }
+
+  @utility drawer-review-copy {
+    @apply text-sm text-muted-foreground;
+  }
+
+  @utility drawer-review-control {
+    @apply text-muted-foreground;
+
+    &[aria-pressed="true"],
+    &[aria-pressed="true"]:hover {
+      color: var(--color-muted-foreground);
+    }
+  }
+
+  @utility drawer-review-heading {
+    @apply text-foreground;
+  }
+
 html,
 body {
   width: 100%;
