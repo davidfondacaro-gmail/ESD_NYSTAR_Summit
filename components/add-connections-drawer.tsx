@@ -432,12 +432,20 @@ export default function AddConnectionsDrawer({
                         setOpenCategories(new Set())
                       }
                     }}
-                    variant="brand-outline"
+                    variant="outline"
                     size="sm"
                     spacing={0}
                   >
-                    <ToggleGroupItem value="type">Program Type</ToggleGroupItem>
-                    <ToggleGroupItem value="region">
+                    <ToggleGroupItem
+                      className="drawer-review-control"
+                      value="type"
+                    >
+                      Program Type
+                    </ToggleGroupItem>
+                    <ToggleGroupItem
+                      className="drawer-review-control"
+                      value="region"
+                    >
                       NYSTAR Region
                     </ToggleGroupItem>
                   </ToggleGroup>
@@ -737,7 +745,7 @@ export default function AddConnectionsDrawer({
               render={
                 <Button
                   type="button"
-                  variant="brand-outline"
+                  variant="secondary"
                   size="lg"
                   className="min-w-24"
                 />
@@ -758,7 +766,7 @@ export default function AddConnectionsDrawer({
               <>
                 <Button
                   type="button"
-                  variant="brand-outline"
+                  variant="secondary"
                   size="lg"
                   className="min-w-24"
                   onClick={() => setStep(1)}
@@ -782,7 +790,7 @@ export default function AddConnectionsDrawer({
               <>
                 <Button
                   type="button"
-                  variant="brand-outline"
+                  variant="secondary"
                   size="lg"
                   className="min-w-24"
                   onClick={() => setStep(2)}
