@@ -101,11 +101,13 @@ export default function NystarLeafletMap({
                           .filter(Boolean)
                           .join(", ")}
                       </span>
-                      {customer.connectedAssetNames.length > 0 && (
-                        <span className="network-popup__host">
-                          Connected to: {customer.connectedAssetNames.join(", ")}
+                      {customer.connections.map((connection) => (
+                        <span className="network-popup__host" key={connection.id}>
+                          {connection.connectionType}: {connection.assetName}
+                          {connection.hostOrganization &&
+                            ` · ${connection.hostOrganization}`}
                         </span>
-                      )}
+                      ))}
                     </li>
                   ))}
                 </ul>

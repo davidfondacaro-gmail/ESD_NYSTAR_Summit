@@ -30,6 +30,7 @@ import {
   FieldTitle,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -37,6 +38,7 @@ import {
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 
 type GroupingMode = "type" | "region"
+type ConnectionType = "Existing" | "Desired"
 
 type ConnectionDetails = {
   organizationName: string
@@ -47,6 +49,18 @@ type ConnectionDetails = {
   postalCode: string
 }
 
+type FollowupDetails = {
+  followupName: string
+  followupEmail: string
+  followupPhone: string
+  followupComments: string
+}
+
+type FollowupField = keyof FollowupDetails
+
+const followupEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+const followupPhonePattern = /^(?:\+?1[\s.-]?)?(?:\([2-9]\d{2}\)|[2-9]\d{2})[\s.-]?[2-9]\d{2}[\s.-]?\d{4}$/
+
 export default function AddConnectionsDrawer({
   categories,
   regions,
@@ -56,7 +70,7 @@ export default function AddConnectionsDrawer({
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [step, setStep] = useState<1 | 2>(1)
+  const [step, setStep] = useState<1 | 2 | 3>(1)
   const [groupingMode, setGroupingMode] = useState<GroupingMode>("type")
   const [details, setDetails] = useState<ConnectionDetails>({
     organizationName: "",
@@ -66,8 +80,20 @@ export default function AddConnectionsDrawer({
     state: "NY",
     postalCode: "",
   })
+  const [followupDetails, setFollowupDetails] = useState<FollowupDetails>({
+    followupName: "",
+    followupEmail: "",
+    followupPhone: "",
+    followupComments: "",
+  })
+  const [followupTouched, setFollowupTouched] = useState<
+    Partial<Record<FollowupField, boolean>>
+  >({})
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
     () => new Set(),
+  )
+  const [connectionTypes, setConnectionTypes] = useState<Map<string, ConnectionType>>(
+    () => new Map(),
   )
   const [openCategories, setOpenCategories] = useState<Set<string>>(
     () => new Set(),
@@ -88,7 +114,15 @@ export default function AddConnectionsDrawer({
       state: "NY",
       postalCode: "",
     })
+    setFollowupDetails({
+      followupName: "",
+      followupEmail: "",
+      followupPhone: "",
+      followupComments: "",
+    })
+    setFollowupTouched({})
     setSelectedPrograms(new Set())
+    setConnectionTypes(new Map())
     setOpenCategories(new Set())
     setIsSubmitting(false)
     setHasSubmitted(false)
@@ -101,10 +135,34 @@ export default function AddConnectionsDrawer({
     setDetails((current) => ({ ...current, [name]: value }))
   }
 
-  function continueToLocations(event: FormEvent<HTMLFormElement>) {
+  function updateFollowupDetail(field: keyof FollowupDetails, value: string) {
+    setFollowupDetails((current) => ({ ...current, [field]: value }))
+  }
+
+  function touchFollowupField(field: FollowupField) {
+    setFollowupTouched((current) => ({ ...current, [field]: true }))
+  }
+
+  function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setFormError("")
-    setStep(2)
+    if (step === 1) {
+      setStep(2)
+    } else if (step === 2) {
+      setStep(3)
+    } else {
+      touchFollowupField("followupEmail")
+      touchFollowupField("followupPhone")
+      const email = followupDetails.followupEmail.trim()
+      const phone = followupDetails.followupPhone.trim()
+      if (
+        (email && !followupEmailPattern.test(email)) ||
+        (phone && !followupPhonePattern.test(phone))
+      ) {
+        return
+      }
+      void submitConnection()
+    }
   }
 
   async function submitConnection() {
@@ -117,7 +175,11 @@ export default function AddConnectionsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...details,
-          connectedAssetIds: [...selectedPrograms],
+          ...(hasDesiredConnection ? followupDetails : {}),
+          connections: [...selectedPrograms].map((assetId) => ({
+            assetId,
+            connectionType: connectionTypes.get(assetId),
+          })),
         }),
       })
       const result = (await response.json()) as { error?: string }
@@ -148,7 +210,52 @@ export default function AddConnectionsDrawer({
       }
       return next
     })
+    if (checked !== true) {
+      setConnectionTypes((current) => {
+        const next = new Map(current)
+        next.delete(programId)
+        return next
+      })
+    }
   }
+
+  function setConnectionType(
+    programId: string,
+    value: string[],
+  ) {
+    const connectionType = value[0]
+    setConnectionTypes((current) => {
+      const next = new Map(current)
+      if (connectionType === "Existing" || connectionType === "Desired") {
+        next.set(programId, connectionType)
+      } else {
+        next.delete(programId)
+      }
+      return next
+    })
+  }
+
+  const canSubmit =
+    selectedPrograms.size > 0 &&
+    [...selectedPrograms].every((programId) => connectionTypes.has(programId))
+  const hasDesiredConnection = [...selectedPrograms].some(
+    (programId) => connectionTypes.get(programId) === "Desired",
+  )
+  const followupEmailError =
+    followupTouched.followupEmail &&
+    followupDetails.followupEmail.trim() &&
+    !followupEmailPattern.test(followupDetails.followupEmail.trim())
+      ? "Enter a valid email address."
+      : ""
+  const followupPhoneError =
+    followupTouched.followupPhone &&
+    followupDetails.followupPhone.trim() &&
+    !followupPhonePattern.test(followupDetails.followupPhone.trim())
+      ? "Enter a valid phone number, with an optional 1 or +1 country code."
+      : ""
+  const selectedProgramDetails = categories
+    .flatMap((group) => group.programs)
+    .filter((program) => selectedPrograms.has(program.id))
 
   function toggleCategory(categoryName: string, open: boolean) {
     setOpenCategories((current) => {
@@ -182,8 +289,10 @@ export default function AddConnectionsDrawer({
           <DrawerTitle className="text-lg">Add Your Connections</DrawerTitle>
           <DrawerDescription>
             {step === 1
-              ? "Step 1 of 2 · Enter the organization and its address."
-              : "Step 2 of 2 · Select one or more NYSTAR locations."}
+              ? "Step 1 of 3 · Enter the organization and its address."
+              : step === 2
+                ? "Step 2 of 3 · Select NYSTAR locations."
+                : "Step 3 of 3 · Review and add follow-up contact details."}
           </DrawerDescription>
           <DrawerClose
             render={
@@ -198,12 +307,12 @@ export default function AddConnectionsDrawer({
             <X aria-hidden="true" />
           </DrawerClose>
         </DrawerHeader>
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={continueToLocations}>
+        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleFormSubmit}>
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             {step === 1 ? (
               <FieldGroup className="gap-4">
                 <Field>
-                  <FieldLabel htmlFor="organization-name">
+                  <FieldLabel className="drawer-field-label" htmlFor="organization-name">
                     Organization name
                   </FieldLabel>
                   <Input
@@ -217,7 +326,7 @@ export default function AddConnectionsDrawer({
                 </Field>
                 <FieldGroup className="gap-4">
                   <Field>
-                    <FieldLabel htmlFor="address-line-1">
+                    <FieldLabel className="drawer-field-label" htmlFor="address-line-1">
                       Address line 1
                     </FieldLabel>
                     <Input
@@ -230,7 +339,7 @@ export default function AddConnectionsDrawer({
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="address-line-2">
+                    <FieldLabel className="drawer-field-label" htmlFor="address-line-2">
                       Address line 2 (optional)
                     </FieldLabel>
                     <Input
@@ -242,7 +351,9 @@ export default function AddConnectionsDrawer({
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="city">City</FieldLabel>
+                    <FieldLabel className="drawer-field-label" htmlFor="city">
+                      City
+                    </FieldLabel>
                     <Input
                       id="city"
                       name="city"
@@ -254,7 +365,9 @@ export default function AddConnectionsDrawer({
                   </Field>
                   <FieldGroup className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
                     <Field>
-                      <FieldLabel htmlFor="state">State</FieldLabel>
+                      <FieldLabel className="drawer-field-label" htmlFor="state">
+                        State
+                      </FieldLabel>
                       <Input
                         id="state"
                         name="state"
@@ -266,7 +379,9 @@ export default function AddConnectionsDrawer({
                       />
                     </Field>
                     <Field>
-                      <FieldLabel htmlFor="postal-code">ZIP code</FieldLabel>
+                      <FieldLabel className="drawer-field-label" htmlFor="postal-code">
+                        ZIP code
+                      </FieldLabel>
                       <Input
                         id="postal-code"
                         name="postalCode"
@@ -280,12 +395,11 @@ export default function AddConnectionsDrawer({
                   </FieldGroup>
                 </FieldGroup>
               </FieldGroup>
-            ) : (
+            ) : step === 2 ? (
               <FieldGroup className="gap-3">
-                <Field>
-                  <FieldTitle id="nystar-grouping-label">Organize by</FieldTitle>
+                <div className="flex w-full items-center justify-between gap-3">
                   <ToggleGroup
-                    aria-labelledby="nystar-grouping-label"
+                    aria-label="Organize by"
                     value={[groupingMode]}
                     onValueChange={(value) => {
                       const nextMode = value[0]
@@ -294,17 +408,19 @@ export default function AddConnectionsDrawer({
                         setOpenCategories(new Set())
                       }
                     }}
-                    variant="outline"
+                    variant="brand-outline"
                     size="sm"
                     spacing={0}
                   >
-                    <ToggleGroupItem value="type">Type</ToggleGroupItem>
-                    <ToggleGroupItem value="region">Region</ToggleGroupItem>
+                    <ToggleGroupItem value="type">Program Type</ToggleGroupItem>
+                    <ToggleGroupItem value="region">
+                      NYSTAR Region
+                    </ToggleGroupItem>
                   </ToggleGroup>
-                </Field>
-                <p className="text-sm text-muted-foreground">
-                  {selectedPrograms.size} selected
-                </p>
+                  <p className="shrink-0 text-right text-sm text-muted-foreground">
+                    {selectedPrograms.size} selected
+                  </p>
+                </div>
                 <ul className="flex flex-col gap-2">
                   {(groupingMode === "type" ? categories : regions).map((group) => {
                     const open = openCategories.has(group.name)
@@ -354,7 +470,7 @@ export default function AddConnectionsDrawer({
                                   <FieldContent>
                                     <FieldLabel
                                       htmlFor={program.id}
-                                      className="cursor-pointer text-sm"
+                                      className="drawer-field-label cursor-pointer"
                                     >
                                       {program.name}
                                     </FieldLabel>
@@ -376,6 +492,185 @@ export default function AddConnectionsDrawer({
                   })}
                 </ul>
               </FieldGroup>
+            ) : (
+              <FieldGroup className="gap-5">
+                <section className="flex flex-col gap-1 border-b border-border pb-4">
+                  <FieldTitle className="drawer-review-heading">
+                    Organization
+                  </FieldTitle>
+                  <p className="drawer-review-copy">{details.organizationName}</p>
+                  <p className="drawer-review-copy">
+                    {details.addressLine1}
+                    {details.addressLine2 && `, ${details.addressLine2}`}
+                    <br />
+                    {details.city}, NY {details.postalCode}
+                  </p>
+                </section>
+
+                <FieldGroup className="gap-2">
+                  <div className="flex items-baseline gap-2">
+                    <FieldTitle className="drawer-review-heading">
+                      Selected connections
+                    </FieldTitle>
+                    <span className="drawer-review-copy">
+                      ({selectedProgramDetails.length})
+                    </span>
+                  </div>
+                  <ol className="list-decimal pl-6 marker:text-muted-foreground">
+                    {selectedProgramDetails.map((program) => (
+                      <li key={program.id} className="pl-1">
+                        <Field
+                          className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0"
+                        >
+                          <FieldContent>
+                            <FieldLabel className="drawer-field-label">
+                              {program.name}
+                            </FieldLabel>
+                            {program.details && (
+                              <FieldDescription className="drawer-review-copy">
+                                {program.details}
+                              </FieldDescription>
+                            )}
+                          </FieldContent>
+                          <ToggleGroup
+                            aria-label={`Connection type for ${program.name}`}
+                            value={
+                              connectionTypes.has(program.id)
+                                ? [connectionTypes.get(program.id)!]
+                                : []
+                            }
+                            onValueChange={(value) =>
+                              setConnectionType(program.id, value)
+                            }
+                            variant="outline"
+                            size="sm"
+                            spacing={0}
+                          >
+                            <ToggleGroupItem
+                              className="drawer-review-control"
+                              value="Existing"
+                            >
+                              Existing
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                              className="drawer-review-control"
+                              value="Desired"
+                            >
+                              Desired
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </Field>
+                      </li>
+                    ))}
+                  </ol>
+                </FieldGroup>
+
+                {hasDesiredConnection && (
+                  <FieldGroup className="gap-4 border-t border-border pt-4">
+                    <div>
+                      <FieldTitle className="drawer-review-heading">
+                        Follow-up contact
+                      </FieldTitle>
+                      <FieldDescription className="drawer-review-copy">
+                        Shared for all connections marked Desired. All fields are optional.
+                      </FieldDescription>
+                    </div>
+                    <Field>
+                      <FieldLabel className="drawer-field-label" htmlFor="followup-name">
+                        Contact name
+                      </FieldLabel>
+                      <Input
+                        id="followup-name"
+                        name="followupName"
+                        autoComplete="name"
+                        value={followupDetails.followupName}
+                        onChange={(event) =>
+                          updateFollowupDetail("followupName", event.currentTarget.value)
+                        }
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel className="drawer-field-label" htmlFor="followup-email">
+                        Email
+                      </FieldLabel>
+                      <Input
+                        id="followup-email"
+                        name="followupEmail"
+                        type="email"
+                        autoComplete="email"
+                        value={followupDetails.followupEmail}
+                        aria-invalid={Boolean(followupEmailError)}
+                        aria-describedby={
+                          followupEmailError ? "followup-email-error" : undefined
+                        }
+                        onBlur={() => touchFollowupField("followupEmail")}
+                        onInvalid={() => touchFollowupField("followupEmail")}
+                        onChange={(event) =>
+                          updateFollowupDetail("followupEmail", event.currentTarget.value)
+                        }
+                      />
+                      {followupEmailError && (
+                        <FieldDescription
+                          id="followup-email-error"
+                          className="text-destructive"
+                          role="alert"
+                        >
+                          {followupEmailError}
+                        </FieldDescription>
+                      )}
+                    </Field>
+                    <Field>
+                      <FieldLabel className="drawer-field-label" htmlFor="followup-phone">
+                        Phone
+                      </FieldLabel>
+                      <Input
+                        id="followup-phone"
+                        name="followupPhone"
+                        type="tel"
+                        autoComplete="tel"
+                        value={followupDetails.followupPhone}
+                        aria-invalid={Boolean(followupPhoneError)}
+                        aria-describedby={
+                          followupPhoneError ? "followup-phone-error" : undefined
+                        }
+                        onBlur={() => touchFollowupField("followupPhone")}
+                        onChange={(event) =>
+                          updateFollowupDetail("followupPhone", event.currentTarget.value)
+                        }
+                      />
+                      {followupPhoneError && (
+                        <FieldDescription
+                          id="followup-phone-error"
+                          className="text-destructive"
+                          role="alert"
+                        >
+                          {followupPhoneError}
+                        </FieldDescription>
+                      )}
+                    </Field>
+                    <Field>
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="followup-comments"
+                      >
+                        Comments
+                      </FieldLabel>
+                      <Textarea
+                        id="followup-comments"
+                        name="followupComments"
+                        rows={4}
+                        value={followupDetails.followupComments}
+                        onChange={(event) =>
+                          updateFollowupDetail(
+                            "followupComments",
+                            event.currentTarget.value,
+                          )
+                        }
+                      />
+                    </Field>
+                  </FieldGroup>
+                )}
+              </FieldGroup>
             )}
           </div>
           {formError && (
@@ -396,7 +691,7 @@ export default function AddConnectionsDrawer({
               <Button type="submit" variant="brand" size="lg" className="min-w-24">
                 Next
               </Button>
-            ) : (
+            ) : step === 2 ? (
               <>
                 <Button
                   type="button"
@@ -409,12 +704,33 @@ export default function AddConnectionsDrawer({
                   Back
                 </Button>
                 <Button
-                  type="button"
+                  type="submit"
                   variant="brand"
                   size="lg"
                   className="min-w-24"
                   disabled={selectedPrograms.size === 0 || isSubmitting || hasSubmitted}
-                  onClick={submitConnection}
+                >
+                  Next
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  variant="brand-outline"
+                  size="lg"
+                  className="min-w-24"
+                  onClick={() => setStep(2)}
+                  disabled={isSubmitting || hasSubmitted}
+                >
+                  Back
+                </Button>
+                <Button
+                  type="submit"
+                  variant="brand"
+                  size="lg"
+                  className="min-w-24"
+                  disabled={!canSubmit || isSubmitting || hasSubmitted}
                 >
                   {isSubmitting ? "Saving…" : hasSubmitted ? "Added" : "Submit"}
                 </Button>

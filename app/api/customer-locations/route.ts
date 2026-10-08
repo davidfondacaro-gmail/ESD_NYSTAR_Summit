@@ -1,6 +1,7 @@
 import "server-only"
 
-import { appendFile, readFile } from "node:fs/promises"
+import { randomUUID } from "node:crypto"
+import { appendFile, readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
 import Papa from "papaparse"
@@ -12,7 +13,9 @@ export const runtime = "nodejs"
 const dataDirectory = join(process.cwd(), "public", "data")
 const nystarCsvPath = join(dataDirectory, "nystar-locations.csv")
 const customerCsvPath = join(dataDirectory, "customer-locations.csv")
+const connectionsCsvPath = join(dataDirectory, "nystar-customer-connections.csv")
 const customerHeaders = [
+  "Customer ID",
   "Organization Name",
   "Address Line 1",
   "Address Line 2",
@@ -23,13 +26,29 @@ const customerHeaders = [
   "Address Verification Note",
   "Xlong",
   "Ylat",
-  "Connections",
+]
+const connectionHeaders = [
+  "Connection ID",
+  "Customer ID",
+  "NYSTAR Asset ID",
+  "Organization Name",
+  "NYSTAR Program Name",
+  "NYSTAR Host Organization",
+  "Connection Type",
+  "Created At",
+  "Followup Name",
+  "Followup Email",
+  "Followup Phone",
+  "Comments",
 ]
 
 type NystarCsvRow = {
   ID: string
   "Asset / Program Name": string
+  "Host Organization": string
 }
+
+type ConnectionType = "Existing" | "Desired"
 
 type CustomerRequest = {
   organizationName?: unknown
@@ -38,7 +57,11 @@ type CustomerRequest = {
   city?: unknown
   state?: unknown
   postalCode?: unknown
-  connectedAssetIds?: unknown
+  followupName?: unknown
+  followupEmail?: unknown
+  followupPhone?: unknown
+  followupComments?: unknown
+  connections?: unknown
 }
 
 let writeQueue: Promise<void> = Promise.resolve()
@@ -51,24 +74,52 @@ function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, { status })
 }
 
-async function appendCustomerRow(values: string[]) {
+function getAppendText(
+  csv: string,
+  expectedHeaders: string[],
+  rows: string[][],
+) {
+  const parsed = Papa.parse<string[]>(csv, {
+    header: false,
+    skipEmptyLines: true,
+  })
+  const currentHeaders = parsed.data[0]?.map((value) => String(value).trim())
+
+  if (JSON.stringify(currentHeaders) !== JSON.stringify(expectedHeaders)) {
+    throw new Error("CSV headers do not match the expected schema.")
+  }
+
+  const newline = csv.includes("\r\n") ? "\r\n" : "\n"
+  const separator = csv.endsWith("\n") ? "" : newline
+  return `${separator}${Papa.unparse(rows, { header: false, newline })}${newline}`
+}
+
+async function appendCustomerAndConnections(
+  customerValues: string[],
+  connectionValues: string[][],
+) {
   const operation = writeQueue.then(async () => {
-    const csv = await readFile(customerCsvPath, "utf8")
-    const parsed = Papa.parse<string[]>(csv, {
-      header: false,
-      skipEmptyLines: true,
-    })
-    const currentHeaders = parsed.data[0]?.map((value) => String(value).trim())
+    const [customerCsv, connectionsCsv] = await Promise.all([
+      readFile(customerCsvPath, "utf8"),
+      readFile(connectionsCsvPath, "utf8"),
+    ])
+    const customerAppend = getAppendText(customerCsv, customerHeaders, [customerValues])
+    const connectionsAppend = getAppendText(
+      connectionsCsv,
+      connectionHeaders,
+      connectionValues,
+    )
 
-    if (JSON.stringify(currentHeaders) !== JSON.stringify(customerHeaders)) {
-      throw new Error("Customer CSV headers do not match the expected schema.")
+    try {
+      await appendFile(customerCsvPath, customerAppend, "utf8")
+      await appendFile(connectionsCsvPath, connectionsAppend, "utf8")
+    } catch (error) {
+      await Promise.all([
+        writeFile(customerCsvPath, customerCsv, "utf8"),
+        writeFile(connectionsCsvPath, connectionsCsv, "utf8"),
+      ])
+      throw error
     }
-
-    const newline = csv.includes("\r\n") ? "\r\n" : "\n"
-    const separator = csv.endsWith("\n") ? "" : newline
-    const row = Papa.unparse([values], { header: false, newline })
-
-    await appendFile(customerCsvPath, `${separator}${row}${newline}`, "utf8")
   })
 
   writeQueue = operation.catch(() => {})
@@ -109,12 +160,39 @@ export async function POST(request: Request) {
     return errorResponse("Enter a New York ZIP code.", 400)
   }
 
-  const connectedAssetIds = Array.isArray(body.connectedAssetIds)
-    ? [...new Set(body.connectedAssetIds.filter((id): id is string => typeof id === "string").map((id) => id.trim()).filter(Boolean))]
-    : []
-
-  if (connectedAssetIds.length === 0) {
+  if (!Array.isArray(body.connections) || body.connections.length === 0) {
     return errorResponse("Select at least one NYSTAR location.", 400)
+  }
+
+  const requestedConnections: { assetId: string; connectionType: ConnectionType }[] = []
+  const seenAssetIds = new Set<string>()
+  for (const item of body.connections) {
+    if (!item || typeof item !== "object" || Array.isArray(item)) {
+      return errorResponse("Invalid NYSTAR connection.", 400)
+    }
+    const connection = item as Record<string, unknown>
+    const assetId = text(connection.assetId)
+    const connectionType = connection.connectionType
+    if (
+      !assetId ||
+      (connectionType !== "Existing" && connectionType !== "Desired") ||
+      seenAssetIds.has(assetId)
+    ) {
+      return errorResponse("Each selected asset needs one Existing or Desired type.", 400)
+    }
+    seenAssetIds.add(assetId)
+    requestedConnections.push({ assetId, connectionType })
+  }
+
+  const followupName = text(body.followupName)
+  const followupEmail = text(body.followupEmail)
+  const followupPhone = text(body.followupPhone)
+  const followupComments = text(body.followupComments)
+  if (
+    followupEmail &&
+    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(followupEmail)
+  ) {
+    return errorResponse("Enter a valid follow-up email address.", 400)
   }
 
   try {
@@ -123,18 +201,40 @@ export async function POST(request: Request) {
       header: true,
       skipEmptyLines: true,
     })
-    const validAssetIds = new Set(
+    const assetsById = new Map(
       nystarRows
-        .filter((row) => row["Asset / Program Name"]?.trim())
-        .map((row) => row.ID?.trim())
-        .filter(Boolean),
+        .filter((row) => row.ID?.trim() && row["Asset / Program Name"]?.trim())
+        .map((row) => [row.ID.trim(), row]),
     )
 
-    if (connectedAssetIds.some((id) => !validAssetIds.has(id))) {
+    if (requestedConnections.some(({ assetId }) => !assetsById.has(assetId))) {
       return errorResponse("One or more selected NYSTAR locations are invalid.", 400)
     }
 
-    await appendCustomerRow([
+    const customerId = `CUS-${randomUUID()}`
+    const createdAt = new Date().toISOString()
+    const connectionIds = requestedConnections.map(() => `CON-${randomUUID()}`)
+    const connectionRows = requestedConnections.map((connection, index) => {
+      const asset = assetsById.get(connection.assetId)!
+      return [
+        connectionIds[index],
+        customerId,
+        connection.assetId,
+        organizationName,
+        asset["Asset / Program Name"].trim(),
+        asset["Host Organization"]?.trim() ?? "",
+        connection.connectionType,
+        createdAt,
+        connection.connectionType === "Desired" ? followupName : "",
+        connection.connectionType === "Desired" ? followupEmail : "",
+        connection.connectionType === "Desired" ? followupPhone : "",
+        connection.connectionType === "Desired" ? followupComments : "",
+      ]
+    })
+
+    await appendCustomerAndConnections(
+      [
+      customerId,
       organizationName,
       addressLine1,
       addressLine2,
@@ -145,11 +245,12 @@ export async function POST(request: Request) {
       "User-entered address; ZIP-centroid coordinates are approximate and the address is unverified.",
       String(coordinates.longitude),
       String(coordinates.latitude),
-      JSON.stringify(connectedAssetIds),
-    ])
+      ],
+      connectionRows,
+    )
 
     revalidatePath("/")
-    return Response.json({ saved: true }, { status: 201 })
+    return Response.json({ saved: true, customerId, connectionIds }, { status: 201 })
   } catch (error) {
     console.error("Failed to save customer location", error)
     return errorResponse("Unable to save the customer location.", 500)

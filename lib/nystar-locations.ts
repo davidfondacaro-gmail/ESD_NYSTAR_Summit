@@ -13,12 +13,23 @@ export type NystarAsset = {
   hostOrganization: string
 }
 
+export type NystarConnectionType = "Existing" | "Desired"
+
+export type NystarCustomerConnection = {
+  id: string
+  assetId: string
+  assetName: string
+  hostOrganization: string
+  connectionType: NystarConnectionType
+  createdAt: string
+}
+
 export type NystarCustomerLocation = {
   id: string
   name: string
   addressLine1: string
   addressLine2: string
-  connectedAssetNames: string[]
+  connections: NystarCustomerConnection[]
 }
 
 export type NystarLocationGroup = {
@@ -62,6 +73,7 @@ type NystarCsvRow = {
 }
 
 type CustomerCsvRow = {
+  "Customer ID": string
   "Organization Name": string
   "Address Line 1": string
   "Address Line 2": string
@@ -70,14 +82,22 @@ type CustomerCsvRow = {
   "ZIP Code": string
   Xlong: string
   Ylat: string
-  Connections: string
+}
+
+type CustomerConnectionCsvRow = {
+  "Connection ID": string
+  "Customer ID": string
+  "NYSTAR Asset ID": string
+  "Connection Type": string
+  "Created At": string
 }
 
 export async function getNystarNetworkData(): Promise<NystarNetworkData> {
   const dataDirectory = join(process.cwd(), "public", "data")
-  const [nystarCsv, customerCsv] = await Promise.all([
+  const [nystarCsv, customerCsv, connectionsCsv] = await Promise.all([
     readFile(join(dataDirectory, "nystar-locations.csv"), "utf8"),
     readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
+    readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
   ])
   const { data: nystarRows } = Papa.parse<NystarCsvRow>(nystarCsv, {
     header: true,
@@ -87,10 +107,14 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
     header: true,
     skipEmptyLines: true,
   })
+  const { data: connectionRows } = Papa.parse<CustomerConnectionCsvRow>(connectionsCsv, {
+    header: true,
+    skipEmptyLines: true,
+  })
   const groups = new Map<string, NystarLocationGroup>()
   const categoryPrograms = new Map<string, NystarProgramOption[]>()
   const regionPrograms = new Map<string, NystarProgramOption[]>()
-  const assetNames = new Map<string, string>()
+  const assetsById = new Map<string, NystarAsset>()
 
   function getGroup(latitude: number, longitude: number) {
     const key = `${latitude},${longitude}`
@@ -126,6 +150,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
         .filter(Boolean)
         .join(", ")
       const details = [hostOrganization, locality].filter(Boolean).join(" · ")
+      const asset: NystarAsset = { id, name, category, hostOrganization }
       const program = { id, name, category, details }
       const categoryList = categoryPrograms.get(category) ?? []
       const regionList = regionPrograms.get(region) ?? []
@@ -134,10 +159,10 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       regionList.push(program)
       categoryPrograms.set(category, categoryList)
       regionPrograms.set(region, regionList)
-      assetNames.set(id, name)
+      assetsById.set(id, asset)
     }
 
-    if (!name || state !== "NY" || !/^\d{5}$/.test(zipCode)) {
+    if (!id || !name || state !== "NY" || !/^\d{5}$/.test(zipCode)) {
       continue
     }
 
@@ -156,15 +181,44 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       group.zipCodes.push(zipCode)
     }
 
-    group.assets.push({
-      id,
-      name,
-      category: row["NYSTAR Program Category"]?.trim() ?? "",
-      hostOrganization: row["Host Organization"]?.trim() ?? "",
-    })
+    const asset = assetsById.get(id)
+    if (asset) {
+      group.assets.push(asset)
+    }
   }
 
-  for (const [rowIndex, row] of customerRows.entries()) {
+  const connectionsByCustomerId = new Map<string, NystarCustomerConnection[]>()
+
+  for (const row of connectionRows) {
+    const connectionId = row["Connection ID"]?.trim()
+    const customerId = row["Customer ID"]?.trim()
+    const assetId = row["NYSTAR Asset ID"]?.trim()
+    const connectionType = row["Connection Type"]?.trim()
+    const asset = assetsById.get(assetId)
+
+    if (
+      !connectionId ||
+      !customerId ||
+      !asset ||
+      (connectionType !== "Existing" && connectionType !== "Desired")
+    ) {
+      continue
+    }
+
+    const customerConnections = connectionsByCustomerId.get(customerId) ?? []
+    customerConnections.push({
+      id: connectionId,
+      assetId,
+      assetName: asset.name,
+      hostOrganization: asset.hostOrganization,
+      connectionType,
+      createdAt: row["Created At"]?.trim() ?? "",
+    })
+    connectionsByCustomerId.set(customerId, customerConnections)
+  }
+
+  for (const row of customerRows) {
+    const customerId = row["Customer ID"]?.trim()
     const name = row["Organization Name"]?.trim()
     const city = row.City?.trim() ?? ""
     const state = row.State?.trim() ?? ""
@@ -174,7 +228,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
     const longitude = Number(longitudeText)
     const latitude = Number(latitudeText)
 
-    if (!name || state !== "NY") {
+    if (!customerId || !name || state !== "NY") {
       continue
     }
 
@@ -205,27 +259,12 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       group.zipCodes.push(zipCode)
     }
 
-    let connectedIds: string[] = []
-    try {
-      const parsedConnections: unknown = JSON.parse(row.Connections || "[]")
-      if (Array.isArray(parsedConnections)) {
-        connectedIds = parsedConnections.filter(
-          (connection): connection is string => typeof connection === "string",
-        )
-      }
-    } catch {
-      connectedIds = []
-    }
-
     group.customers.push({
-      id: `customer-${rowIndex}`,
+      id: customerId,
       name,
       addressLine1: row["Address Line 1"]?.trim() ?? "",
       addressLine2: row["Address Line 2"]?.trim() ?? "",
-      connectedAssetNames: connectedIds.flatMap((connectedId) => {
-        const assetName = assetNames.get(connectedId)
-        return assetName ? [assetName] : []
-      }),
+      connections: connectionsByCustomerId.get(customerId) ?? [],
     })
   }
 
