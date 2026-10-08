@@ -63,12 +63,12 @@ export default function NystarLeafletMap({
         maxClusterRadius={36}
       >
         {locations.map((location) => (
-          <Marker
-            key={`${location.latitude}-${location.longitude}`}
-            position={[location.latitude, location.longitude]}
-            icon={markerIcon(location.assets.length)}
-            title={`${location.assets.length} NYSTAR ${location.assets.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
-          >
+            <Marker
+              key={`${location.latitude}-${location.longitude}`}
+              position={[location.latitude, location.longitude]}
+              icon={markerIcon(location.assets.length + location.customers.length)}
+              title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
+            >
             <Popup>
               <div className="network-popup">
                 <p className="network-popup__place">
@@ -86,6 +86,26 @@ export default function NystarLeafletMap({
                       <span className="network-popup__host">
                         {asset.hostOrganization}
                       </span>
+                    </li>
+                  ))}
+                  {location.customers.map((customer) => (
+                    <li key={customer.id}>
+                      <span className="network-popup__category">
+                        Customer organization
+                      </span>
+                      <strong className="network-popup__name">
+                        {customer.name}
+                      </strong>
+                      <span className="network-popup__host">
+                        {[customer.addressLine1, customer.addressLine2]
+                          .filter(Boolean)
+                          .join(", ")}
+                      </span>
+                      {customer.connectedAssetNames.length > 0 && (
+                        <span className="network-popup__host">
+                          Connected to: {customer.connectedAssetNames.join(", ")}
+                        </span>
+                      )}
                     </li>
                   ))}
                 </ul>
