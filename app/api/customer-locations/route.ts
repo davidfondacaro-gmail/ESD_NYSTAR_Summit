@@ -13,7 +13,10 @@ export const runtime = "nodejs"
 const dataDirectory = join(process.cwd(), "public", "data")
 const nystarCsvPath = join(dataDirectory, "nystar-locations.csv")
 const customerCsvPath = join(dataDirectory, "customer-locations.csv")
-const connectionsCsvPath = join(dataDirectory, "nystar-customer-connections.csv")
+const connectionsCsvPath = join(
+  dataDirectory,
+  "nystar-customer-connections.csv"
+)
 const customerHeaders = [
   "Customer ID",
   "Organization Name",
@@ -77,7 +80,7 @@ function errorResponse(message: string, status: number) {
 function getAppendText(
   csv: string,
   expectedHeaders: string[],
-  rows: string[][],
+  rows: string[][]
 ) {
   const parsed = Papa.parse<string[]>(csv, {
     header: false,
@@ -96,18 +99,20 @@ function getAppendText(
 
 async function appendCustomerAndConnections(
   customerValues: string[],
-  connectionValues: string[][],
+  connectionValues: string[][]
 ) {
   const operation = writeQueue.then(async () => {
     const [customerCsv, connectionsCsv] = await Promise.all([
       readFile(customerCsvPath, "utf8"),
       readFile(connectionsCsvPath, "utf8"),
     ])
-    const customerAppend = getAppendText(customerCsv, customerHeaders, [customerValues])
+    const customerAppend = getAppendText(customerCsv, customerHeaders, [
+      customerValues,
+    ])
     const connectionsAppend = getAppendText(
       connectionsCsv,
       connectionHeaders,
-      connectionValues,
+      connectionValues
     )
 
     try {
@@ -146,7 +151,10 @@ export async function POST(request: Request) {
   const postalCode = text(body.postalCode)
 
   if (!organizationName || !addressLine1 || !city || !postalCode) {
-    return errorResponse("Organization, street address, city, and ZIP code are required.", 400)
+    return errorResponse(
+      "Organization, street address, city, and ZIP code are required.",
+      400
+    )
   }
   if (body.state !== "NY") {
     return errorResponse("Only New York addresses are allowed.", 400)
@@ -164,7 +172,10 @@ export async function POST(request: Request) {
     return errorResponse("Select at least one NYSTAR location.", 400)
   }
 
-  const requestedConnections: { assetId: string; connectionType: ConnectionType }[] = []
+  const requestedConnections: {
+    assetId: string
+    connectionType: ConnectionType
+  }[] = []
   const seenAssetIds = new Set<string>()
   for (const item of body.connections) {
     if (!item || typeof item !== "object" || Array.isArray(item)) {
@@ -178,7 +189,10 @@ export async function POST(request: Request) {
       (connectionType !== "Existing" && connectionType !== "Desired") ||
       seenAssetIds.has(assetId)
     ) {
-      return errorResponse("Each selected asset needs one Existing or Desired type.", 400)
+      return errorResponse(
+        "Each selected asset needs one Existing or Desired type.",
+        400
+      )
     }
     seenAssetIds.add(assetId)
     requestedConnections.push({ assetId, connectionType })
@@ -188,10 +202,7 @@ export async function POST(request: Request) {
   const followupEmail = text(body.followupEmail)
   const followupPhone = text(body.followupPhone)
   const followupComments = text(body.followupComments)
-  if (
-    followupEmail &&
-    !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(followupEmail)
-  ) {
+  if (followupEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(followupEmail)) {
     return errorResponse("Enter a valid follow-up email address.", 400)
   }
 
@@ -204,11 +215,14 @@ export async function POST(request: Request) {
     const assetsById = new Map(
       nystarRows
         .filter((row) => row.ID?.trim() && row["Asset / Program Name"]?.trim())
-        .map((row) => [row.ID.trim(), row]),
+        .map((row) => [row.ID.trim(), row])
     )
 
     if (requestedConnections.some(({ assetId }) => !assetsById.has(assetId))) {
-      return errorResponse("One or more selected NYSTAR locations are invalid.", 400)
+      return errorResponse(
+        "One or more selected NYSTAR locations are invalid.",
+        400
+      )
     }
 
     const customerId = `CUS-${randomUUID()}`
@@ -234,23 +248,26 @@ export async function POST(request: Request) {
 
     await appendCustomerAndConnections(
       [
-      customerId,
-      organizationName,
-      addressLine1,
-      addressLine2,
-      city,
-      "NY",
-      postalCode,
-      "Low",
-      "User-entered address; ZIP-centroid coordinates are approximate and the address is unverified.",
-      String(coordinates.longitude),
-      String(coordinates.latitude),
+        customerId,
+        organizationName,
+        addressLine1,
+        addressLine2,
+        city,
+        "NY",
+        postalCode,
+        "Low",
+        "User-entered address; ZIP-centroid coordinates are approximate and the address is unverified.",
+        String(coordinates.longitude),
+        String(coordinates.latitude),
       ],
-      connectionRows,
+      connectionRows
     )
 
     revalidatePath("/")
-    return Response.json({ saved: true, customerId, connectionIds }, { status: 201 })
+    return Response.json(
+      { saved: true, customerId, connectionIds },
+      { status: 201 }
+    )
   } catch (error) {
     console.error("Failed to save customer location", error)
     return errorResponse("Unable to save the customer location.", 500)

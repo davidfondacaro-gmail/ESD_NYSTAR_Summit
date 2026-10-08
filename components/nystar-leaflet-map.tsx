@@ -12,9 +12,7 @@ function FitLocations({ locations }: { locations: NystarLocationGroup[] }) {
 
   useEffect(() => {
     const bounds = L.latLngBounds(
-      locations.map(({ latitude, longitude }) =>
-        L.latLng(latitude, longitude),
-      ),
+      locations.map(({ latitude, longitude }) => L.latLng(latitude, longitude))
     )
 
     if (bounds.isValid()) {
@@ -63,16 +61,19 @@ export default function NystarLeafletMap({
         maxClusterRadius={36}
       >
         {locations.map((location) => (
-            <Marker
-              key={`${location.latitude}-${location.longitude}`}
-              position={[location.latitude, location.longitude]}
-              icon={markerIcon(location.assets.length + location.customers.length)}
-              title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
-            >
+          <Marker
+            key={`${location.latitude}-${location.longitude}`}
+            position={[location.latitude, location.longitude]}
+            icon={markerIcon(
+              location.assets.length + location.customers.length
+            )}
+            title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
+          >
             <Popup>
               <div className="network-popup">
                 <p className="network-popup__place">
-                  {location.cities.join(" / ")}, NY · ZIP {location.zipCodes.join(", ")} · Approximate ZIP center
+                  {location.cities.join(" / ")}, NY · ZIP{" "}
+                  {location.zipCodes.join(", ")} · Approximate ZIP center
                 </p>
                 <ul className="network-popup__assets">
                   {location.assets.map((asset) => (
@@ -102,7 +103,10 @@ export default function NystarLeafletMap({
                           .join(", ")}
                       </span>
                       {customer.connections.map((connection) => (
-                        <span className="network-popup__host" key={connection.id}>
+                        <span
+                          className="network-popup__host"
+                          key={connection.id}
+                        >
                           {connection.connectionType}: {connection.assetName}
                           {connection.hostOrganization &&
                             ` · ${connection.hostOrganization}`}

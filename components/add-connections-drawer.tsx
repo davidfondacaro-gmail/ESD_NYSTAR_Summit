@@ -31,10 +31,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 
 type GroupingMode = "type" | "region"
@@ -59,7 +56,8 @@ type FollowupDetails = {
 type FollowupField = keyof FollowupDetails
 
 const followupEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const followupPhonePattern = /^(?:\+?1[\s.-]?)?(?:\([2-9]\d{2}\)|[2-9]\d{2})[\s.-]?[2-9]\d{2}[\s.-]?\d{4}$/
+const followupPhonePattern =
+  /^(?:\+?1[\s.-]?)?(?:\([2-9]\d{2}\)|[2-9]\d{2})[\s.-]?[2-9]\d{2}[\s.-]?\d{4}$/
 
 export default function AddConnectionsDrawer({
   categories,
@@ -90,13 +88,13 @@ export default function AddConnectionsDrawer({
     Partial<Record<FollowupField, boolean>>
   >({})
   const [selectedPrograms, setSelectedPrograms] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set()
   )
-  const [connectionTypes, setConnectionTypes] = useState<Map<string, ConnectionType>>(
-    () => new Map(),
-  )
+  const [connectionTypes, setConnectionTypes] = useState<
+    Map<string, ConnectionType>
+  >(() => new Map())
   const [openCategories, setOpenCategories] = useState<Set<string>>(
-    () => new Set(),
+    () => new Set()
   )
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
@@ -193,14 +191,19 @@ export default function AddConnectionsDrawer({
       router.refresh()
     } catch (error) {
       setFormError(
-        error instanceof Error ? error.message : "Unable to save this connection.",
+        error instanceof Error
+          ? error.message
+          : "Unable to save this connection."
       )
     } finally {
       setIsSubmitting(false)
     }
   }
 
-  function toggleProgram(programId: string, checked: boolean | "indeterminate") {
+  function toggleProgram(
+    programId: string,
+    checked: boolean | "indeterminate"
+  ) {
     setSelectedPrograms((current) => {
       const next = new Set(current)
       if (checked === true) {
@@ -219,10 +222,7 @@ export default function AddConnectionsDrawer({
     }
   }
 
-  function setConnectionType(
-    programId: string,
-    value: string[],
-  ) {
+  function setConnectionType(programId: string, value: string[]) {
     const connectionType = value[0]
     setConnectionTypes((current) => {
       const next = new Map(current)
@@ -239,7 +239,7 @@ export default function AddConnectionsDrawer({
     selectedPrograms.size > 0 &&
     [...selectedPrograms].every((programId) => connectionTypes.has(programId))
   const hasDesiredConnection = [...selectedPrograms].some(
-    (programId) => connectionTypes.get(programId) === "Desired",
+    (programId) => connectionTypes.get(programId) === "Desired"
   )
   const followupEmailError =
     followupTouched.followupEmail &&
@@ -279,7 +279,13 @@ export default function AddConnectionsDrawer({
       swipeDirection="right"
     >
       <DrawerTrigger
-        render={<Button variant="brand" size="lg" className="network-add-trigger w-full justify-between" />}
+        render={
+          <Button
+            variant="brand"
+            size="lg"
+            className="network-add-trigger w-full justify-between"
+          />
+        }
       >
         Add Your Connections
         <Plus aria-hidden="true" data-icon="inline-end" />
@@ -307,12 +313,18 @@ export default function AddConnectionsDrawer({
             <X aria-hidden="true" />
           </DrawerClose>
         </DrawerHeader>
-        <form className="flex min-h-0 flex-1 flex-col" onSubmit={handleFormSubmit}>
+        <form
+          className="flex min-h-0 flex-1 flex-col"
+          onSubmit={handleFormSubmit}
+        >
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             {step === 1 ? (
               <FieldGroup className="gap-4">
                 <Field>
-                  <FieldLabel className="drawer-field-label" htmlFor="organization-name">
+                  <FieldLabel
+                    className="drawer-field-label"
+                    htmlFor="organization-name"
+                  >
                     Organization name
                   </FieldLabel>
                   <Input
@@ -326,7 +338,10 @@ export default function AddConnectionsDrawer({
                 </Field>
                 <FieldGroup className="gap-4">
                   <Field>
-                    <FieldLabel className="drawer-field-label" htmlFor="address-line-1">
+                    <FieldLabel
+                      className="drawer-field-label"
+                      htmlFor="address-line-1"
+                    >
                       Address line 1
                     </FieldLabel>
                     <Input
@@ -339,7 +354,10 @@ export default function AddConnectionsDrawer({
                     />
                   </Field>
                   <Field>
-                    <FieldLabel className="drawer-field-label" htmlFor="address-line-2">
+                    <FieldLabel
+                      className="drawer-field-label"
+                      htmlFor="address-line-2"
+                    >
                       Address line 2 (optional)
                     </FieldLabel>
                     <Input
@@ -365,7 +383,10 @@ export default function AddConnectionsDrawer({
                   </Field>
                   <FieldGroup className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
                     <Field>
-                      <FieldLabel className="drawer-field-label" htmlFor="state">
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="state"
+                      >
                         State
                       </FieldLabel>
                       <Input
@@ -379,7 +400,10 @@ export default function AddConnectionsDrawer({
                       />
                     </Field>
                     <Field>
-                      <FieldLabel className="drawer-field-label" htmlFor="postal-code">
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="postal-code"
+                      >
                         ZIP code
                       </FieldLabel>
                       <Input
@@ -389,7 +413,7 @@ export default function AddConnectionsDrawer({
                         inputMode="numeric"
                         value={details.postalCode}
                         onChange={updateDetails}
-                      required
+                        required
                       />
                     </Field>
                   </FieldGroup>
@@ -422,74 +446,76 @@ export default function AddConnectionsDrawer({
                   </p>
                 </div>
                 <ul className="flex flex-col gap-2">
-                  {(groupingMode === "type" ? categories : regions).map((group) => {
-                    const open = openCategories.has(group.name)
-                    return (
-                      <li key={`${groupingMode}-${group.name}`}>
-                        <Collapsible
-                          open={open}
-                          onOpenChange={(nextOpen) =>
-                            toggleCategory(group.name, nextOpen)
-                          }
-                          className="rounded-md border border-border"
-                        >
-                          <CollapsibleTrigger
-                            render={
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-3 text-left whitespace-normal"
-                              />
+                  {(groupingMode === "type" ? categories : regions).map(
+                    (group) => {
+                      const open = openCategories.has(group.name)
+                      return (
+                        <li key={`${groupingMode}-${group.name}`}>
+                          <Collapsible
+                            open={open}
+                            onOpenChange={(nextOpen) =>
+                              toggleCategory(group.name, nextOpen)
                             }
+                            className="rounded-md border border-border"
                           >
-                            <ChevronRight
-                              aria-hidden="true"
-                              className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-                              data-icon="inline-start"
-                            />
-                            <span>{group.name}</span>
-                            <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                              {group.programs.length}
-                            </span>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="border-t border-border px-3 py-2">
-                            <FieldGroup className="gap-1">
-                              {group.programs.map((program) => (
-                                <Field
-                                  key={program.id}
-                                  orientation="horizontal"
-                                  className="items-start gap-3 rounded-sm py-2"
-                                >
-                                  <Checkbox
-                                    id={program.id}
-                                    checked={selectedPrograms.has(program.id)}
-                                    onCheckedChange={(checked) =>
-                                      toggleProgram(program.id, checked)
-                                    }
-                                  />
-                                  <FieldContent>
-                                    <FieldLabel
-                                      htmlFor={program.id}
-                                      className="drawer-field-label cursor-pointer"
-                                    >
-                                      {program.name}
-                                    </FieldLabel>
-                                    {program.details && (
-                                      <FieldDescription className="text-xs">
-                                        {groupingMode === "region"
-                                          ? `${program.category} · ${program.details}`
-                                          : program.details}
-                                      </FieldDescription>
-                                    )}
-                                  </FieldContent>
-                                </Field>
-                              ))}
-                            </FieldGroup>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      </li>
-                    )
-                  })}
+                            <CollapsibleTrigger
+                              render={
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-3 text-left whitespace-normal"
+                                />
+                              }
+                            >
+                              <ChevronRight
+                                aria-hidden="true"
+                                className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
+                                data-icon="inline-start"
+                              />
+                              <span>{group.name}</span>
+                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
+                                {group.programs.length}
+                              </span>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="border-t border-border px-3 py-2">
+                              <FieldGroup className="gap-1">
+                                {group.programs.map((program) => (
+                                  <Field
+                                    key={program.id}
+                                    orientation="horizontal"
+                                    className="items-start gap-3 rounded-sm py-2"
+                                  >
+                                    <Checkbox
+                                      id={program.id}
+                                      checked={selectedPrograms.has(program.id)}
+                                      onCheckedChange={(checked) =>
+                                        toggleProgram(program.id, checked)
+                                      }
+                                    />
+                                    <FieldContent>
+                                      <FieldLabel
+                                        htmlFor={program.id}
+                                        className="cursor-pointer drawer-field-label"
+                                      >
+                                        {program.name}
+                                      </FieldLabel>
+                                      {program.details && (
+                                        <FieldDescription className="text-xs">
+                                          {groupingMode === "region"
+                                            ? `${program.category} · ${program.details}`
+                                            : program.details}
+                                        </FieldDescription>
+                                      )}
+                                    </FieldContent>
+                                  </Field>
+                                ))}
+                              </FieldGroup>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        </li>
+                      )
+                    }
+                  )}
                 </ul>
               </FieldGroup>
             ) : (
@@ -498,7 +524,9 @@ export default function AddConnectionsDrawer({
                   <FieldTitle className="drawer-review-heading">
                     Organization
                   </FieldTitle>
-                  <p className="drawer-review-copy">{details.organizationName}</p>
+                  <p className="drawer-review-copy">
+                    {details.organizationName}
+                  </p>
                   <p className="drawer-review-copy">
                     {details.addressLine1}
                     {details.addressLine2 && `, ${details.addressLine2}`}
@@ -519,9 +547,7 @@ export default function AddConnectionsDrawer({
                   <ol className="list-decimal pl-6 marker:text-muted-foreground">
                     {selectedProgramDetails.map((program) => (
                       <li key={program.id} className="pl-1">
-                        <Field
-                          className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0"
-                        >
+                        <Field className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
                           <FieldContent>
                             <FieldLabel className="drawer-field-label">
                               {program.name}
@@ -572,11 +598,15 @@ export default function AddConnectionsDrawer({
                         Follow-up contact
                       </FieldTitle>
                       <FieldDescription className="drawer-review-copy">
-                        Shared for all connections marked Desired. All fields are optional.
+                        Shared for all connections marked Desired. All fields
+                        are optional.
                       </FieldDescription>
                     </div>
                     <Field>
-                      <FieldLabel className="drawer-field-label" htmlFor="followup-name">
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="followup-name"
+                      >
                         Contact name
                       </FieldLabel>
                       <Input
@@ -585,12 +615,18 @@ export default function AddConnectionsDrawer({
                         autoComplete="name"
                         value={followupDetails.followupName}
                         onChange={(event) =>
-                          updateFollowupDetail("followupName", event.currentTarget.value)
+                          updateFollowupDetail(
+                            "followupName",
+                            event.currentTarget.value
+                          )
                         }
                       />
                     </Field>
                     <Field>
-                      <FieldLabel className="drawer-field-label" htmlFor="followup-email">
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="followup-email"
+                      >
                         Email
                       </FieldLabel>
                       <Input
@@ -601,12 +637,17 @@ export default function AddConnectionsDrawer({
                         value={followupDetails.followupEmail}
                         aria-invalid={Boolean(followupEmailError)}
                         aria-describedby={
-                          followupEmailError ? "followup-email-error" : undefined
+                          followupEmailError
+                            ? "followup-email-error"
+                            : undefined
                         }
                         onBlur={() => touchFollowupField("followupEmail")}
                         onInvalid={() => touchFollowupField("followupEmail")}
                         onChange={(event) =>
-                          updateFollowupDetail("followupEmail", event.currentTarget.value)
+                          updateFollowupDetail(
+                            "followupEmail",
+                            event.currentTarget.value
+                          )
                         }
                       />
                       {followupEmailError && (
@@ -620,7 +661,10 @@ export default function AddConnectionsDrawer({
                       )}
                     </Field>
                     <Field>
-                      <FieldLabel className="drawer-field-label" htmlFor="followup-phone">
+                      <FieldLabel
+                        className="drawer-field-label"
+                        htmlFor="followup-phone"
+                      >
                         Phone
                       </FieldLabel>
                       <Input
@@ -631,11 +675,16 @@ export default function AddConnectionsDrawer({
                         value={followupDetails.followupPhone}
                         aria-invalid={Boolean(followupPhoneError)}
                         aria-describedby={
-                          followupPhoneError ? "followup-phone-error" : undefined
+                          followupPhoneError
+                            ? "followup-phone-error"
+                            : undefined
                         }
                         onBlur={() => touchFollowupField("followupPhone")}
                         onChange={(event) =>
-                          updateFollowupDetail("followupPhone", event.currentTarget.value)
+                          updateFollowupDetail(
+                            "followupPhone",
+                            event.currentTarget.value
+                          )
                         }
                       />
                       {followupPhoneError && (
@@ -663,7 +712,7 @@ export default function AddConnectionsDrawer({
                         onChange={(event) =>
                           updateFollowupDetail(
                             "followupComments",
-                            event.currentTarget.value,
+                            event.currentTarget.value
                           )
                         }
                       />
@@ -684,11 +733,25 @@ export default function AddConnectionsDrawer({
             </p>
           )}
           <DrawerFooter className="flex-row justify-end gap-3 border-t px-6 py-4 pt-4">
-            <DrawerClose render={<Button type="button" variant="brand-outline" size="lg" className="min-w-24" />}>
+            <DrawerClose
+              render={
+                <Button
+                  type="button"
+                  variant="brand-outline"
+                  size="lg"
+                  className="min-w-24"
+                />
+              }
+            >
               Cancel
             </DrawerClose>
             {step === 1 ? (
-              <Button type="submit" variant="brand" size="lg" className="min-w-24">
+              <Button
+                type="submit"
+                variant="brand"
+                size="lg"
+                className="min-w-24"
+              >
                 Next
               </Button>
             ) : step === 2 ? (
@@ -708,7 +771,9 @@ export default function AddConnectionsDrawer({
                   variant="brand"
                   size="lg"
                   className="min-w-24"
-                  disabled={selectedPrograms.size === 0 || isSubmitting || hasSubmitted}
+                  disabled={
+                    selectedPrograms.size === 0 || isSubmitting || hasSubmitted
+                  }
                 >
                   Next
                 </Button>

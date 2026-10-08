@@ -107,10 +107,13 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
     header: true,
     skipEmptyLines: true,
   })
-  const { data: connectionRows } = Papa.parse<CustomerConnectionCsvRow>(connectionsCsv, {
-    header: true,
-    skipEmptyLines: true,
-  })
+  const { data: connectionRows } = Papa.parse<CustomerConnectionCsvRow>(
+    connectionsCsv,
+    {
+      header: true,
+      skipEmptyLines: true,
+    }
+  )
   const groups = new Map<string, NystarLocationGroup>()
   const categoryPrograms = new Map<string, NystarProgramOption[]>()
   const regionPrograms = new Map<string, NystarProgramOption[]>()
