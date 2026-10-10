@@ -51,6 +51,55 @@ function InvalidateMapSize() {
   return null
 }
 
+function FocusNetworkSelection({
+  locations,
+  selectedProgramId,
+  selectedPartnerName,
+}: {
+  locations: NystarLocationGroup[]
+  selectedProgramId: string
+  selectedPartnerName: string
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!selectedProgramId && !selectedPartnerName) {
+      return
+    }
+
+    const matchingLocations = locations.filter((location) =>
+      selectedProgramId
+        ? location.assets.some((asset) => asset.id === selectedProgramId)
+        : location.assets.some(
+            (asset) => asset.hostOrganization === selectedPartnerName
+          ) ||
+          location.customers.some(
+            (customer) => customer.name === selectedPartnerName
+          )
+    )
+
+    if (matchingLocations.length === 1) {
+      const [location] = matchingLocations
+      map.flyTo(
+        [location.latitude, location.longitude],
+        Math.max(map.getZoom(), 10),
+        { duration: 0.6 }
+      )
+    } else if (matchingLocations.length > 1) {
+      map.fitBounds(
+        L.latLngBounds(
+          matchingLocations.map((location) =>
+            L.latLng(location.latitude, location.longitude)
+          )
+        ),
+        { padding: [48, 48], maxZoom: 9 }
+      )
+    }
+  }, [locations, map, selectedPartnerName, selectedProgramId])
+
+  return null
+}
+
 function markerIcon(count: number) {
   const isGroup = count > 1
   const label = isGroup ? String(count) : ""
@@ -66,8 +115,12 @@ function markerIcon(count: number) {
 
 export default function NystarLeafletMap({
   locations,
+  selectedProgramId,
+  selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
+  selectedProgramId: string
+  selectedPartnerName: string
 }) {
   return (
     <MapContainer
@@ -84,6 +137,11 @@ export default function NystarLeafletMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitLocations locations={locations} />
+      <FocusNetworkSelection
+        locations={locations}
+        selectedProgramId={selectedProgramId}
+        selectedPartnerName={selectedPartnerName}
+      />
       <MarkerClusterGroup
         chunkedLoading
         showCoverageOnHover={false}

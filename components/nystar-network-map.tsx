@@ -11,8 +11,18 @@ const LeafletMap = dynamic(() => import("./nystar-leaflet-map"), {
 
 export default function NystarNetworkMap({
   locations,
+  selectedProgramId,
+  selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
+  selectedProgramId: string
+  selectedPartnerName: string
 }) {
-  return <LeafletMap locations={locations} />
+  return (
+    <LeafletMap
+      locations={locations}
+      selectedProgramId={selectedProgramId}
+      selectedPartnerName={selectedPartnerName}
+    />
+  )
 }

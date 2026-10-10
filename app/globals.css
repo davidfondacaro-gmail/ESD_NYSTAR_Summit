@@ -69,6 +69,12 @@
   --brand-blue-secondary: #007681;
   --brand-yellow: #f7bf53;
   --brand-gray: #e1e1e1;
+  --toggle-selected-background: color-mix(
+    in srgb,
+    var(--brand-blue-secondary) 24%,
+    transparent
+  );
+  --toggle-selected-foreground: var(--foreground);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
@@ -154,9 +160,11 @@
 @utility drawer-review-control {
   @apply text-muted-foreground;
 
-  &[aria-pressed="true"],
-  &[aria-pressed="true"]:hover {
-    color: var(--color-muted-foreground);
+  &[aria-pressed="true"][data-variant],
+  &[aria-pressed="true"][data-variant]:hover {
+    background-color: var(--toggle-selected-background);
+    border-color: var(--toggle-selected-background);
+    color: var(--toggle-selected-foreground);
   }
 }
 
@@ -196,6 +204,42 @@ body {
 
 .network-theme-toggle {
   align-self: flex-end;
+}
+
+.network-listbox-option[aria-selected="true"] {
+  background-color: var(--toggle-selected-background);
+  color: var(--toggle-selected-foreground);
+}
+
+.network-collapsible-panel {
+  display: grid;
+  grid-template-rows: minmax(0, 0fr);
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    grid-template-rows 240ms linear,
+    opacity 180ms linear;
+}
+
+.network-collapsible-panel[data-open] {
+  grid-template-rows: minmax(0, 1fr);
+  opacity: 1;
+}
+
+.network-collapsible-panel__inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .network-collapsible-panel {
+    transition: none;
+  }
+}
+
+.network-listbox:focus-visible .network-listbox-option[data-active="true"]:not([aria-selected="true"]) {
+  background-color: var(--accent);
+  color: var(--accent-foreground);
 }
 
 .network-map-panel {
