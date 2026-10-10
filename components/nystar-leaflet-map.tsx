@@ -23,6 +23,34 @@ function FitLocations({ locations }: { locations: NystarLocationGroup[] }) {
   return null
 }
 
+function InvalidateMapSize() {
+  const map = useMap()
+
+  useEffect(() => {
+    let resizeTimeout: number | undefined
+    const observer = new ResizeObserver(() => {
+      if (resizeTimeout) {
+        window.clearTimeout(resizeTimeout)
+      }
+      resizeTimeout = window.setTimeout(
+        () => map.invalidateSize({ pan: false }),
+        100
+      )
+    })
+
+    observer.observe(map.getContainer())
+
+    return () => {
+      if (resizeTimeout) {
+        window.clearTimeout(resizeTimeout)
+      }
+      observer.disconnect()
+    }
+  }, [map])
+
+  return null
+}
+
 function markerIcon(count: number) {
   const isGroup = count > 1
   const label = isGroup ? String(count) : ""
@@ -50,6 +78,7 @@ export default function NystarLeafletMap({
       zoomSnap={0.5}
       scrollWheelZoom
     >
+      <InvalidateMapSize />
       <TileLayer
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"

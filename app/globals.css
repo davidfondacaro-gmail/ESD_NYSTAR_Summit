@@ -177,38 +177,18 @@ body {
 }
 
 .network-screen {
-  display: grid;
+  display: flex;
   width: 100%;
   height: 100svh;
   min-height: 420px;
-  grid-template-columns: 280px minmax(0, 1fr);
   overflow: hidden;
   background: var(--network-map-bg);
-}
-
-.network-sidebar {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: space-between;
-  padding: 32px;
-  border-right: 1px solid var(--sidebar-border);
-  background: var(--sidebar);
-}
-
-.network-sidebar::before {
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 4px;
-  background: var(--network-accent);
-  content: "";
 }
 
 .network-sidebar__title {
   max-width: 100%;
   color: var(--sidebar-foreground);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--font-heading);
   font-size: 25px;
   font-weight: 600;
   line-height: 1.15;
@@ -219,9 +199,20 @@ body {
 }
 
 .network-map-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
   background: var(--network-map-bg);
+}
+
+.network-map-sidebar-trigger {
+  position: absolute;
+  z-index: 1000;
+  top: 12px;
+  left: 12px;
 }
 
 .network-map-canvas,
@@ -336,47 +327,8 @@ body {
   }
 }
 
-@media (max-width: 700px) {
-  .network-screen {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: 112px minmax(0, 1fr);
-  }
-
-  .network-sidebar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-rows: auto auto;
-    align-content: center;
-    align-items: center;
-    gap: 8px 12px;
-    padding: 12px 16px 12px 20px;
-    border-right: 0;
-    border-bottom: 1px solid var(--sidebar-border);
-  }
-
-  .network-sidebar::before {
-    inset: 0 auto 0 0;
-    width: 4px;
-  }
-
+@media (max-width: 767px) {
   .network-sidebar__title {
-    grid-column: 1;
-    grid-row: 1;
     font-size: 19px;
-  }
-
-  .network-add-trigger {
-    grid-column: 1;
-    grid-row: 2;
-    min-height: 34px;
-    align-self: flex-start;
-    padding-inline: 10px;
-    font-size: 12px;
-  }
-
-  .network-theme-toggle {
-    grid-column: 2;
-    grid-row: 2;
-    align-self: center;
   }
 }
