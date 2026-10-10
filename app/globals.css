@@ -24,7 +24,8 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
-  --color-brand-blue: var(--brand-blue);
+  --color-brand-blue-primary: var(--brand-blue-primary);
+  --color-brand-blue-secondary: var(--brand-blue-secondary);
   --color-brand-yellow: var(--brand-yellow);
   --color-brand-gray: var(--brand-gray);
   --color-accent-foreground: var(--accent-foreground);
@@ -64,7 +65,8 @@
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   --accent: oklch(0.97 0 0);
-  --brand-blue: #0b5d66;
+  --brand-blue-primary: #0b5d66;
+  --brand-blue-secondary: #007681;
   --brand-yellow: #f7bf53;
   --brand-gray: #e1e1e1;
   --accent-foreground: oklch(0.205 0 0);
@@ -191,8 +193,8 @@ body {
   align-items: stretch;
   justify-content: space-between;
   padding: 32px;
-  border-right: 1px solid #d9ded9;
-  background: var(--network-paper);
+  border-right: 1px solid var(--sidebar-border);
+  background: var(--sidebar);
 }
 
 .network-sidebar::before {
@@ -205,11 +207,15 @@ body {
 
 .network-sidebar__title {
   max-width: 100%;
-  color: var(--network-ink);
+  color: var(--sidebar-foreground);
   font-family: Georgia, "Times New Roman", serif;
   font-size: 25px;
   font-weight: 600;
   line-height: 1.15;
+}
+
+.network-theme-toggle {
+  align-self: flex-end;
 }
 
 .network-map-panel {
@@ -337,10 +343,15 @@ body {
   }
 
   .network-sidebar {
-    gap: 10px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-content: center;
+    align-items: center;
+    gap: 8px 12px;
     padding: 12px 16px 12px 20px;
     border-right: 0;
-    border-bottom: 1px solid #d9ded9;
+    border-bottom: 1px solid var(--sidebar-border);
   }
 
   .network-sidebar::before {
@@ -349,13 +360,23 @@ body {
   }
 
   .network-sidebar__title {
+    grid-column: 1;
+    grid-row: 1;
     font-size: 19px;
   }
 
   .network-add-trigger {
+    grid-column: 1;
+    grid-row: 2;
     min-height: 34px;
     align-self: flex-start;
     padding-inline: 10px;
     font-size: 12px;
+  }
+
+  .network-theme-toggle {
+    grid-column: 2;
+    grid-row: 2;
+    align-self: center;
   }
 }
