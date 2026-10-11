@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useEffect, useId, useRef, useState } from "react"
-import { ChevronRight, Info } from "lucide-react"
+import { ChevronRight, Info, ZoomIn } from "lucide-react"
 
 import AddConnectionsDrawer from "@/components/add-connections-drawer"
 import NystarNetworkMap from "@/components/nystar-network-map"
@@ -19,6 +19,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { Toggle } from "@/components/ui/toggle"
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -362,6 +363,7 @@ export default function NetworkExplorerPanel({
 
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
+  const [showZoomControls, setShowZoomControls] = useState(false)
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
     "alpha"
   )
@@ -599,7 +601,19 @@ export default function NetworkExplorerPanel({
           </ExplorerSection>
         </SidebarContent>
         <SidebarFooter className="items-end">
-          <ThemeToggleButton />
+          <div className="flex items-center gap-2">
+            <Toggle
+              aria-label="Toggle map zoom controls"
+              title="Toggle map zoom controls"
+              pressed={showZoomControls}
+              onPressedChange={setShowZoomControls}
+              variant="default"
+              size="sm"
+            >
+              <ZoomIn aria-hidden="true" />
+            </Toggle>
+            <ThemeToggleButton />
+          </div>
         </SidebarFooter>
       </Sidebar>
       <SidebarInset className="network-map-panel">
@@ -611,6 +625,7 @@ export default function NetworkExplorerPanel({
           locations={locations}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
+          showZoomControls={showZoomControls}
         />
       </SidebarInset>
     </SidebarProvider>

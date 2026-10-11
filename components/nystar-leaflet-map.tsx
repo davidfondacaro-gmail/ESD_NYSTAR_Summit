@@ -3,7 +3,14 @@
 import L from "leaflet"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import MarkerClusterGroup from "react-leaflet-cluster"
-import { MapContainer, Marker, Pane, Popup, useMap } from "react-leaflet"
+import {
+  MapContainer,
+  Marker,
+  Pane,
+  Popup,
+  ZoomControl,
+  useMap,
+} from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
@@ -117,6 +124,26 @@ function RecenterMapOnSidebarClose() {
   }, [isMobile, map, state])
 
   return null
+}
+
+function MapZoomControls({ enabled }: { enabled: boolean }) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (enabled) {
+      map.setMinZoom(5)
+      map.setMaxZoom(12)
+      map.dragging.enable()
+      return
+    }
+
+    map.dragging.disable()
+    map.setMinZoom(7)
+    map.setMaxZoom(7)
+    map.setView(DEFAULT_MAP_CENTER, 7, { animate: false })
+  }, [enabled, map])
+
+  return enabled ? <ZoomControl position="bottomright" /> : null
 }
 
 function MepRegionsLayer() {
@@ -256,10 +283,12 @@ export default function NystarLeafletMap({
   locations,
   selectedProgramId,
   selectedPartnerName,
+  showZoomControls,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
+  showZoomControls: boolean
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterGroupRef = useRef<MarkerClusterGroupApi | null>(null)
@@ -279,8 +308,8 @@ export default function NystarLeafletMap({
       className="network-map-canvas"
       center={DEFAULT_MAP_CENTER}
       zoom={7}
-      minZoom={7}
-      maxZoom={7}
+      minZoom={5}
+      maxZoom={12}
       zoomControl={false}
       dragging={false}
       scrollWheelZoom={false}
@@ -291,6 +320,7 @@ export default function NystarLeafletMap({
       attributionControl={false}
     >
       <InvalidateMapSize />
+      <MapZoomControls enabled={showZoomControls} />
       <RecenterMapOnSidebarClose />
       <MepRegionsLayer />
       <OpenSelectedMapSelectionPopup
