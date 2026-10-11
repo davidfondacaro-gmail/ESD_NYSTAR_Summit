@@ -1,13 +1,14 @@
 "use client"
 
 import { Fragment, useEffect, useId, useRef, useState } from "react"
-import { ChevronRight } from "lucide-react"
+import { ChevronRight, Info } from "lucide-react"
 
 import AddConnectionsDrawer from "@/components/add-connections-drawer"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
   Sidebar,
   SidebarContent,
@@ -373,6 +374,12 @@ export default function NetworkExplorerPanel({
               setOpenSection(open ? "program" : null)
             }
           >
+            <Alert className="border-sidebar-border bg-transparent">
+              <Info aria-hidden="true" />
+              <AlertDescription>
+                Select a NYSTAR program to view its connections on the map.
+              </AlertDescription>
+            </Alert>
             <div className="flex items-center justify-between gap-2">
               <ToggleGroup
                 aria-label="Group programs by"
