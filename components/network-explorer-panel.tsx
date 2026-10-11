@@ -1,7 +1,16 @@
 "use client"
 
 import { Fragment, useEffect, useId, useRef, useState } from "react"
-import { ChevronRight, Info, ZoomIn } from "lucide-react"
+import {
+  ArrowRight,
+  ChevronRight,
+  Circle,
+  FileText,
+  Info,
+  Link,
+  Star,
+  ZoomIn,
+} from "lucide-react"
 
 import AddConnectionsDrawer from "@/components/add-connections-drawer"
 import NystarNetworkMap from "@/components/nystar-network-map"
@@ -16,8 +25,12 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarInset,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { Toggle } from "@/components/ui/toggle"
 import {
@@ -216,12 +229,14 @@ function ExplorerListbox({
 
 function ExplorerSection({
   headingId,
+  icon,
   title,
   open,
   onOpenChange,
   children,
 }: {
   headingId: string
+  icon: React.ReactNode
   title: string
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -246,8 +261,11 @@ function ExplorerSection({
               onClick={() => onOpenChange(!open)}
               className="group h-auto min-h-11 w-full justify-between gap-3 rounded-md px-3 py-3 text-left whitespace-normal"
             >
-              <span id={headingId} className="min-w-0 flex-1 whitespace-normal">
-                {title}
+              <span className="flex min-w-0 flex-1 items-center gap-2">
+                {icon}
+                <span id={headingId} className="min-w-0 whitespace-normal">
+                  {title}
+                </span>
               </span>
               <ChevronRight
                 aria-hidden="true"
@@ -273,6 +291,62 @@ function ExplorerSection({
           </div>
         </CardContent>
       </Card>
+    </SidebarGroup>
+  )
+}
+
+function CollapsedExplorerNavigation({
+  openSection,
+  onSelectSection,
+}: {
+  openSection: ExplorerSectionId | null
+  onSelectSection: (section: ExplorerSectionId) => void
+}) {
+  const { setOpen } = useSidebar()
+
+  const items = [
+    {
+      id: "program",
+      label: "Find a NYSTAR Program",
+      icon: Star,
+    },
+    {
+      id: "partner",
+      label: "Find an Innovation Partner",
+      icon: Circle,
+    },
+    {
+      id: "connections",
+      label: "Add a Program, Partner, or Connections",
+      icon: Link,
+    },
+    {
+      id: "tour",
+      label: "Take a Guided Tour of the Network",
+      icon: ArrowRight,
+    },
+  ] as const
+
+  return (
+    <SidebarGroup className="hidden p-0 group-data-[collapsible=icon]:block">
+      <SidebarMenu className="gap-1">
+        {items.map(({ id, label, icon: Icon }) => (
+          <SidebarMenuItem key={id}>
+            <SidebarMenuButton
+              aria-label={label}
+              isActive={openSection === id}
+              onClick={() => {
+                onSelectSection(id)
+                setOpen(true)
+              }}
+              tooltip={label}
+              className="justify-center text-sidebar-foreground"
+            >
+              <Icon aria-hidden="true" />
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+        ))}
+      </SidebarMenu>
     </SidebarGroup>
   )
 }
@@ -364,6 +438,7 @@ export default function NetworkExplorerPanel({
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
   const [showZoomControls, setShowZoomControls] = useState(false)
+  const [showMapLegend, setShowMapLegend] = useState(true)
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
     "alpha"
   )
@@ -417,9 +492,14 @@ export default function NetworkExplorerPanel({
           </h1>
           <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
         </SidebarHeader>
-        <SidebarContent className="min-h-0 gap-3 px-3 py-3">
+        <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
+          <CollapsedExplorerNavigation
+            openSection={openSection}
+            onSelectSection={setOpenSection}
+          />
           <ExplorerSection
             headingId="find-program-heading"
+            icon={<Star aria-hidden="true" className="shrink-0" />}
             title="Find a NYSTAR Program"
             open={openSection === "program"}
             onOpenChange={(open) =>
@@ -492,6 +572,7 @@ export default function NetworkExplorerPanel({
 
           <ExplorerSection
             headingId="find-partner-heading"
+            icon={<Circle aria-hidden="true" className="shrink-0" />}
             title="Find an Innovation Partner"
             open={openSection === "partner"}
             onOpenChange={(open) =>
@@ -549,6 +630,7 @@ export default function NetworkExplorerPanel({
 
           <ExplorerSection
             headingId="add-connections-heading"
+            icon={<Link aria-hidden="true" className="shrink-0" />}
             title="Add a Program, Partner, or Connections"
             open={openSection === "connections"}
             onOpenChange={(open) =>
@@ -560,6 +642,7 @@ export default function NetworkExplorerPanel({
 
           <ExplorerSection
             headingId="guided-tour-heading"
+            icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
             title="Take a Guided Tour of the Network"
             open={openSection === "tour"}
             onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
@@ -612,6 +695,16 @@ export default function NetworkExplorerPanel({
             >
               <ZoomIn aria-hidden="true" />
             </Toggle>
+            <Toggle
+              aria-label="Toggle map legend"
+              title="Toggle map legend"
+              pressed={showMapLegend}
+              onPressedChange={setShowMapLegend}
+              variant="default"
+              size="sm"
+            >
+              <FileText aria-hidden="true" />
+            </Toggle>
             <ThemeToggleButton />
           </div>
         </SidebarFooter>
@@ -626,6 +719,7 @@ export default function NetworkExplorerPanel({
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
           showZoomControls={showZoomControls}
+          showMapLegend={showMapLegend}
         />
       </SidebarInset>
     </SidebarProvider>

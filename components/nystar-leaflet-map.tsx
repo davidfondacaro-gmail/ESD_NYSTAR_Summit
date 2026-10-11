@@ -2,7 +2,6 @@
 
 import L from "leaflet"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
-import MarkerClusterGroup from "react-leaflet-cluster"
 import {
   MapContainer,
   Marker,
@@ -15,14 +14,20 @@ import {
 import { useSidebar } from "@/components/ui/sidebar"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
 
-type ClusterVisibleMarker = L.Marker & { spiderfy?: () => void }
-
-type MarkerClusterGroupApi = {
-  getVisibleParent: (marker: L.Marker) => ClusterVisibleMarker | null
-  once: (event: "spiderfied", callback: () => void) => unknown
-}
-
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
+const CUSTOMER_MARKER_COLOR = "#c3d1da"
+const CATEGORY_COLORS: Record<string, string> = {
+  "Centers for Advanced Technology": "#56b4e9",
+  "Centers for Advanced Technology--NO LONGER OPERATING": "#f0e442",
+  "Centers of Excellence": "#e69f00",
+  "Innovation Hot Spot": "#009e73",
+  "New York Manufacturing Extension Partnership": "#0072b2",
+  "New York State Accelerators and Competition": "#d55e00",
+  "New York State Accelerators and Competitions": "#cc79a7",
+  "NY Fashion Innovation Center": "#e76bf3",
+  "NY Global Entrepreneurs Program": "#00bfc4",
+  "NYS-Certified Business Incubator": "#b79f00",
+}
 
 const cityLabels = [
   {
@@ -201,13 +206,11 @@ function locationKey(location: NystarLocationGroup) {
 
 function OpenSelectedMapSelectionPopup({
   locations,
-  clusterGroupRef,
   markerRefs,
   selectedProgramId,
   selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
-  clusterGroupRef: RefObject<MarkerClusterGroupApi | null>
   markerRefs: RefObject<Map<string, L.Marker>>
   selectedProgramId: string
   selectedPartnerName: string
@@ -234,48 +237,41 @@ function OpenSelectedMapSelectionPopup({
       return
     }
 
-    const marker = markerRefs.current.get(locationKey(matchingLocation))
-    const clusterGroup = clusterGroupRef.current
-    if (!marker || !clusterGroup) {
-      return
-    }
-
-    const visibleParent = clusterGroup.getVisibleParent(marker)
-    if (
-      visibleParent &&
-      visibleParent !== marker &&
-      typeof visibleParent.spiderfy === "function"
-    ) {
-      clusterGroup.once("spiderfied", () => marker.openPopup())
-      visibleParent.spiderfy()
-      return
-    }
-
-    marker.openPopup()
-  }, [
-    clusterGroupRef,
-    locations,
-    map,
-    markerRefs,
-    selectedPartnerName,
-    selectedProgramId,
-  ])
+    markerRefs.current.get(locationKey(matchingLocation))?.openPopup()
+  }, [locations, map, markerRefs, selectedPartnerName, selectedProgramId])
 
   return null
 }
 
-function markerIcon(count: number) {
-  const isGroup = count > 1
-  const label = isGroup
-    ? `<span class="nystar-marker__count">${count}</span>`
+function markerIcon(categories: string[], hasInnovationPartner: boolean) {
+  const markerCategories = [...new Set(categories)]
+  const stars = markerCategories
+    .map((category) => {
+      const color = CATEGORY_COLORS[category] ?? CUSTOMER_MARKER_COLOR
+      return `<span class="nystar-marker__star" style="--marker-color:${color}"></span>`
+    })
+    .join("")
+  const single = markerCategories.length === 1
+  const customerDot = hasInnovationPartner
+    ? `<span class="nystar-marker__partner-dot${markerCategories.length === 0 ? " nystar-marker__partner-dot--single" : ""}"></span>`
     : ""
+  const starsClass = [
+    "nystar-marker__stars",
+    single ? "nystar-marker__stars--single" : "",
+    hasInnovationPartner && markerCategories.length > 0
+      ? "nystar-marker__stars--with-partner"
+      : "",
+  ]
+    .filter(Boolean)
+    .join(" ")
+  const starContent = stars ? `<span class="${starsClass}">${stars}</span>` : ""
 
   return L.divIcon({
     className: "nystar-marker",
-    html: `<span class="nystar-marker__dot${isGroup ? " nystar-marker__dot--group" : ""}">${label}</span>`,
-    iconSize: [28, 28],
-    iconAnchor: [14, 14],
-    popupAnchor: [0, -13],
+    html: `<span class="nystar-marker__symbols">${starContent}${customerDot}</span>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
   })
 }
 
@@ -284,14 +280,15 @@ export default function NystarLeafletMap({
   selectedProgramId,
   selectedPartnerName,
   showZoomControls,
+  showMapLegend,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
   showZoomControls: boolean
+  showMapLegend: boolean
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
-  const clusterGroupRef = useRef<MarkerClusterGroupApi | null>(null)
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -302,9 +299,12 @@ export default function NystarLeafletMap({
     }
     return positions
   }, [locations])
-
+  const mapCategories = Array.from(
+    new Set(locations.flatMap((location) => location.assets.map((asset) => asset.category)))
+  ).sort((left, right) => left.localeCompare(right))
   return (
-    <MapContainer
+    <div className="network-map-shell">
+      <MapContainer
       className="network-map-canvas"
       center={DEFAULT_MAP_CENTER}
       zoom={7}
@@ -325,21 +325,11 @@ export default function NystarLeafletMap({
       <MepRegionsLayer />
       <OpenSelectedMapSelectionPopup
         locations={locations}
-        clusterGroupRef={clusterGroupRef}
         markerRefs={markerRefs}
         selectedProgramId={selectedProgramId}
         selectedPartnerName={selectedPartnerName}
       />
-      <MarkerClusterGroup
-        ref={(clusterGroup: unknown) => {
-          clusterGroupRef.current = clusterGroup as unknown as MarkerClusterGroupApi | null
-        }}
-        chunkedLoading
-        showCoverageOnHover={false}
-        maxClusterRadius={36}
-        zoomToBoundsOnClick={false}
-      >
-        {locations.map((location) => (
+      {locations.map((location) => (
           <Marker
             key={`${location.latitude}-${location.longitude}`}
             ref={(marker) => {
@@ -349,7 +339,8 @@ export default function NystarLeafletMap({
             }}
             position={markerPositions.get(locationKey(location))!}
             icon={markerIcon(
-              location.assets.length + location.customers.length
+              location.assets.map((asset) => asset.category),
+              location.customers.length > 0
             )}
             title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
           >
@@ -402,8 +393,7 @@ export default function NystarLeafletMap({
               </div>
             </Popup>
           </Marker>
-        ))}
-      </MarkerClusterGroup>
+      ))}
       <Pane
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
@@ -423,6 +413,57 @@ export default function NystarLeafletMap({
           />
         ))}
       </Pane>
-    </MapContainer>
+      </MapContainer>
+        {showMapLegend && (
+          <aside className="network-map-legend" aria-label="Map legend">
+            <h2 className="network-map-legend__title">NYSTAR Programs</h2>
+            <ul className="network-map-legend__items">
+              {mapCategories.map((category) => (
+                <li className="network-map-legend__item" key={category}>
+                  <span
+                    className="network-map-legend__star"
+                    style={{
+                      "--marker-color": CATEGORY_COLORS[category] ?? CUSTOMER_MARKER_COLOR,
+                    } as React.CSSProperties}
+                    aria-hidden="true"
+                  />
+                  <span>{category}</span>
+                </li>
+              ))}
+            </ul>
+            <h2 className="network-map-legend__title network-map-legend__title--section">
+              Innovation Partners
+            </h2>
+            <ul className="network-map-legend__items">
+              <li className="network-map-legend__item">
+                <span
+                  className="network-map-legend__dot"
+                  aria-hidden="true"
+                />
+                <span>Customer organization</span>
+              </li>
+            </ul>
+            <h2 className="network-map-legend__title network-map-legend__title--section">
+              NYSTAR-Partner Connections
+            </h2>
+            <ul className="network-map-legend__items">
+              <li className="network-map-legend__item">
+                <span
+                  className="network-map-legend__line"
+                  aria-hidden="true"
+                />
+                <span>Current/Past Connections</span>
+              </li>
+              <li className="network-map-legend__item">
+                <span
+                  className="network-map-legend__line network-map-legend__line--dashed"
+                  aria-hidden="true"
+                />
+                <span>Emerging/Desired Connections</span>
+              </li>
+            </ul>
+          </aside>
+        )}
+    </div>
   )
 }
