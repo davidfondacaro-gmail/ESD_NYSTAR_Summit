@@ -97,11 +97,17 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
   const dataDirectory = join(process.cwd(), "public", "data")
   const [nystarCsv, customerCsv, connectionsCsv, mepRegionsJson] =
     await Promise.all([
-    readFile(join(dataDirectory, "nystar-locations.csv"), "utf8"),
-    readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
-    readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
-    readFile(join(dataDirectory, "ny_mep_regions.geojson"), "utf8"),
-  ])
+      readFile(
+        join(
+          dataDirectory,
+          "nystar-innovation-assets-map-base-layer-lgw.csv"
+        ),
+        "utf8"
+      ),
+      readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
+      readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
+      readFile(join(dataDirectory, "ny_mep_regions.geojson"), "utf8"),
+    ])
   const mepRegions = JSON.parse(mepRegionsJson) as {
     features?: { properties?: { region_name?: string } }[]
   }
@@ -177,6 +183,16 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       regionPrograms.set(region, regionList)
       assetsById.set(id, asset)
     }
+  }
+
+  for (const row of nystarRows) {
+    const category = row["NYSTAR Program Category"]?.trim() ?? ""
+    const name = row["Asset / Program Name"]?.trim()
+    const id = row.ID?.trim()
+    const hostOrganization = row["Host Organization"]?.trim() ?? ""
+    const city = row.City?.trim() ?? ""
+    const state = row.State?.trim() ?? ""
+    const zipCode = row["ZIP Code"]?.trim() ?? ""
 
     if (!id || !name || state !== "NY" || !/^\d{5}$/.test(zipCode)) {
       continue
@@ -197,10 +213,13 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       group.zipCodes.push(zipCode)
     }
 
-    const asset = assetsById.get(id)
-    if (asset) {
-      group.assets.push(asset)
-    }
+    const metadata = assetsById.get(id)
+    group.assets.push({
+      id,
+      name,
+      category: metadata?.category ?? category,
+      hostOrganization,
+    })
   }
 
   const connectionsByCustomerId = new Map<string, NystarCustomerConnection[]>()

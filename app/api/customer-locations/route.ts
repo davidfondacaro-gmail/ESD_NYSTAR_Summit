@@ -11,7 +11,10 @@ import zipcodes from "zipcodes"
 export const runtime = "nodejs"
 
 const dataDirectory = join(process.cwd(), "public", "data")
-const nystarCsvPath = join(dataDirectory, "nystar-locations.csv")
+const nystarCsvPath = join(
+  dataDirectory,
+  "nystar-innovation-assets-map-base-layer-lgw.csv"
+)
 const customerCsvPath = join(dataDirectory, "customer-locations.csv")
 const connectionsCsvPath = join(
   dataDirectory,
