@@ -213,29 +213,6 @@ function ExplorerListbox({
   )
 }
 
-const guidedTourSteps = [
-  {
-    title: "Explore the map",
-    description:
-      "Browse NYSTAR locations across New York. Select a marker to see program and organization details.",
-  },
-  {
-    title: "Find a program or partner",
-    description:
-      "Open either list and choose a name to focus the map on its location or locations.",
-  },
-  {
-    title: "Add your connections",
-    description:
-      "Record an organization, select NYSTAR programs, and mark each connection Existing or Desired.",
-  },
-  {
-    title: "Capture follow-up details",
-    description:
-      "For Desired connections, optionally add one shared contact and comments for NYSTAR to follow up.",
-  },
-] as const
-
 function ExplorerSection({
   headingId,
   title,
@@ -303,10 +280,12 @@ export default function NetworkExplorerPanel({
   locations,
   categories,
   regions,
+  tourRegions,
 }: {
   locations: NystarLocationGroup[]
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
+  tourRegions: string[]
 }) {
   const programs = categories
     .flatMap((group) => group.programs)
@@ -392,7 +371,8 @@ export default function NetworkExplorerPanel({
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
     "program"
   )
-  const [tourStep, setTourStep] = useState<number | null>(null)
+  const [tourStarted, setTourStarted] = useState(false)
+  const [selectedTourRegion, setSelectedTourRegion] = useState("all")
   const selectedProgram = programs.find(
     (program) => program.id === selectedProgramId
   )
@@ -421,6 +401,10 @@ export default function NetworkExplorerPanel({
             group: group.name,
           }))
         )
+  const tourRegionOptions = [
+    { value: "all", label: "All Regions" },
+    ...tourRegions.map((region) => ({ value: region, label: region })),
+  ]
 
   return (
     <SidebarProvider className="network-screen">
@@ -578,59 +562,40 @@ export default function NetworkExplorerPanel({
             open={openSection === "tour"}
             onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
           >
-            {tourStep === null ? (
+            <Alert className="border-sidebar-border bg-transparent">
+              <Info aria-hidden="true" />
+              <AlertDescription>
+                Select a region below to start your tour.
+              </AlertDescription>
+            </Alert>
+            <ExplorerListbox
+              labelledBy="guided-tour-heading"
+              options={tourRegionOptions}
+              value={selectedTourRegion}
+              visibleRows={6}
+              onValueChange={setSelectedTourRegion}
+            />
+            <div className="flex items-center justify-between gap-2">
               <Button
                 type="button"
-                variant="secondary"
+                variant="default"
                 size="sm"
-                className="w-full"
-                onClick={() => setTourStep(0)}
+                className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
+                onClick={() => setTourStarted((started) => !started)}
               >
-                Start tour
+                {tourStarted ? "Exit Tour" : "Start Tour"}
               </Button>
-            ) : (
-              <div className="flex flex-col gap-2">
-                <p className="text-xs text-muted-foreground">
-                  Step {tourStep + 1} of {guidedTourSteps.length}
-                </p>
-                <h2 className="text-sm font-medium text-sidebar-foreground">
-                  {guidedTourSteps[tourStep].title}
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  {guidedTourSteps[tourStep].description}
-                </p>
-                <div className="flex items-center justify-between gap-2 pt-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() =>
-                      setTourStep((step) =>
-                        step === null || step === 0 ? null : step - 1
-                      )
-                    }
-                  >
-                    {tourStep === 0 ? "Exit tour" : "Back"}
+              {tourStarted && (
+                <div className="ml-auto flex items-center gap-2">
+                  <Button type="button" variant="brand-outline" size="sm">
+                    Next
                   </Button>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() =>
-                      setTourStep((step) =>
-                        step === null || step === guidedTourSteps.length - 1
-                          ? null
-                          : step + 1
-                      )
-                    }
-                  >
-                    {tourStep === guidedTourSteps.length - 1
-                      ? "Finish"
-                      : "Next"}
+                  <Button type="button" variant="brand-outline" size="sm">
+                    Auto
                   </Button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </ExplorerSection>
         </SidebarContent>
         <SidebarFooter className="items-end">
