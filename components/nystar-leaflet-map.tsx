@@ -3,8 +3,9 @@
 import L from "leaflet"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import MarkerClusterGroup from "react-leaflet-cluster"
-import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet"
+import { MapContainer, Marker, Pane, Popup, useMap } from "react-leaflet"
 
+import { useSidebar } from "@/components/ui/sidebar"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
 
 type ClusterVisibleMarker = L.Marker & { spiderfy?: () => void }
@@ -13,6 +14,61 @@ type MarkerClusterGroupApi = {
   getVisibleParent: (marker: L.Marker) => ClusterVisibleMarker | null
   once: (event: "spiderfied", callback: () => void) => unknown
 }
+
+const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
+
+const cityLabels = [
+  {
+    name: "Albany",
+    position: [42.6526, -73.7562] as L.LatLngExpression,
+    offset: [-42, 17],
+  },
+  {
+    name: "Utica",
+    position: [43.1009, -75.2327] as L.LatLngExpression,
+    offset: [18, -32],
+  },
+  {
+    name: "Rochester",
+    position: [43.1566, -77.6088] as L.LatLngExpression,
+    offset: [8, -40],
+  },
+  {
+    name: "Buffalo",
+    position: [42.8864, -78.8784] as L.LatLngExpression,
+    offset: [-34, 24],
+  },
+  {
+    name: "Binghamton",
+    position: [42.0987, -75.918] as L.LatLngExpression,
+    offset: [8, 14],
+  },
+  {
+    name: "Syracuse",
+    position: [43.0481, -76.1474] as L.LatLngExpression,
+    offset: [73, 8],
+  },
+  {
+    name: "Plattsburgh",
+    position: [44.6995, -73.4529] as L.LatLngExpression,
+    offset: [20, 1],
+  },
+  {
+    name: "Watertown",
+    position: [43.9748, -75.9108] as L.LatLngExpression,
+    offset: [-52, -16],
+  },
+  {
+    name: "Woodstock",
+    position: [42.0409, -74.1182] as L.LatLngExpression,
+    offset: [34, 15],
+  },
+  {
+    name: "New York City",
+    position: [40.7128, -74.006] as L.LatLngExpression,
+    offset: [-86, 14],
+  },
+] as const
 
 function InvalidateMapSize() {
   const map = useMap()
@@ -24,7 +80,7 @@ function InvalidateMapSize() {
         window.clearTimeout(resizeTimeout)
       }
       resizeTimeout = window.setTimeout(
-        () => map.invalidateSize({ pan: false }),
+        () => map.invalidateSize({ pan: true, animate: false }),
         100
       )
     })
@@ -36,6 +92,76 @@ function InvalidateMapSize() {
         window.clearTimeout(resizeTimeout)
       }
       observer.disconnect()
+    }
+  }, [map])
+
+  return null
+}
+
+function RecenterMapOnSidebarClose() {
+  const map = useMap()
+  const { isMobile, state } = useSidebar()
+
+  useEffect(() => {
+    if (isMobile || state !== "collapsed") {
+      return
+    }
+
+    const recenterTimeout = window.setTimeout(() => {
+      const zoom = map.getZoom()
+      map.invalidateSize({ pan: false })
+      map.setView(DEFAULT_MAP_CENTER, zoom, { animate: false })
+    }, 250)
+
+    return () => window.clearTimeout(recenterTimeout)
+  }, [isMobile, map, state])
+
+  return null
+}
+
+function MepRegionsLayer() {
+  const map = useMap()
+
+  useEffect(() => {
+    const controller = new AbortController()
+    let regionsLayer: L.GeoJSON | null = null
+
+    async function loadRegions() {
+      try {
+        const response = await fetch("/data/ny_mep_regions.geojson", {
+          signal: controller.signal,
+        })
+        if (!response.ok) {
+          throw new Error("Unable to load NY MEP regions.")
+        }
+
+        const geoJson = (await response.json()) as GeoJSON.GeoJsonObject
+        if (controller.signal.aborted) {
+          return
+        }
+
+        regionsLayer = L.geoJSON(geoJson, {
+          interactive: false,
+          style: {
+            color: "#35546b",
+            weight: 1.25,
+            opacity: 0.9,
+            fillColor: "#142b3b",
+            fillOpacity: 0.98,
+          },
+        }).addTo(map)
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          console.error("Failed to load NY MEP regions.", error)
+        }
+      }
+    }
+
+    void loadRegions()
+
+    return () => {
+      controller.abort()
+      regionsLayer?.remove()
     }
   }, [map])
 
@@ -113,7 +239,9 @@ function OpenSelectedMapSelectionPopup({
 
 function markerIcon(count: number) {
   const isGroup = count > 1
-  const label = isGroup ? String(count) : ""
+  const label = isGroup
+    ? `<span class="nystar-marker__count">${count}</span>`
+    : ""
 
   return L.divIcon({
     className: "nystar-marker",
@@ -149,8 +277,10 @@ export default function NystarLeafletMap({
   return (
     <MapContainer
       className="network-map-canvas"
-      center={[42.95, -75.5]}
+      center={DEFAULT_MAP_CENTER}
       zoom={7}
+      minZoom={7}
+      maxZoom={7}
       zoomControl={false}
       dragging={false}
       scrollWheelZoom={false}
@@ -158,12 +288,11 @@ export default function NystarLeafletMap({
       touchZoom={false}
       boxZoom={false}
       keyboard={false}
+      attributionControl={false}
     >
       <InvalidateMapSize />
-      <TileLayer
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-      />
+      <RecenterMapOnSidebarClose />
+      <MepRegionsLayer />
       <OpenSelectedMapSelectionPopup
         locations={locations}
         clusterGroupRef={clusterGroupRef}
@@ -245,6 +374,25 @@ export default function NystarLeafletMap({
           </Marker>
         ))}
       </MarkerClusterGroup>
+      <Pane
+        name="city-labels"
+        style={{ zIndex: 650, pointerEvents: "none" }}
+      >
+        {cityLabels.map(({ name, position, offset }) => (
+          <Marker
+            key={name}
+            position={position}
+            icon={L.divIcon({
+              className: "nystar-city-label",
+              html: `<span class="nystar-city-label__text" style="--city-label-x:${offset[0]}px;--city-label-y:${offset[1]}px">${name}</span>`,
+              iconSize: [0, 0],
+              iconAnchor: [0, 0],
+            })}
+            interactive={false}
+            keyboard={false}
+          />
+        ))}
+      </Pane>
     </MapContainer>
   )
 }

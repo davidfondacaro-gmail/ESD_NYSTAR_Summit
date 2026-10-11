@@ -97,10 +97,14 @@
 }
 
 :root {
-  --network-ink: #203b35;
-  --network-accent: #b84e37;
+  --network-ink: #dce6ed;
+  --network-accent: #f2b84b;
   --network-paper: #f7f7f2;
-  --network-map-bg: var(--brand-gray);
+  --network-map-bg: #0e1b24;
+  --network-region-fill: #142b3b;
+  --network-region-outline: #35546b;
+  --network-node: #c3d1da;
+  --network-city-label: #8294a2;
 }
 
 .dark {
@@ -277,14 +281,14 @@ body {
 
 .nystar-marker__dot {
   display: grid;
-  width: 22px;
-  height: 22px;
+  width: 8px;
+  height: 8px;
   place-items: center;
-  border: 2px solid #fff;
+  border: 1px solid #e0e9ee;
   border-radius: 50%;
-  background: var(--network-accent);
-  box-shadow: 0 1px 5px rgb(32 59 53 / 35%);
-  color: #fff;
+  background: var(--network-node);
+  box-shadow: 0 0 0 2px rgb(195 209 218 / 12%);
+  color: #101d25;
   font-family: var(--font-sans), sans-serif;
   font-size: 10px;
   font-weight: 700;
@@ -292,26 +296,52 @@ body {
 }
 
 .nystar-marker__dot--group {
-  width: 28px;
-  height: 28px;
-  background: var(--network-ink);
-  font-size: 11px;
+  width: 13px;
+  height: 13px;
+  border: 1px solid #f8d17c;
+  border-radius: 1px;
+  background: var(--network-accent);
+  transform: rotate(45deg);
+}
+
+.nystar-marker__count {
+  transform: rotate(-45deg);
+  font-size: 8px;
 }
 
 .marker-cluster-small,
 .marker-cluster-medium,
 .marker-cluster-large {
-  background-color: rgb(32 59 53 / 22%);
+  background-color: rgb(242 184 75 / 16%);
 }
 
 .marker-cluster-small div,
 .marker-cluster-medium div,
 .marker-cluster-large div {
-  border: 2px solid #fff;
-  background: var(--network-ink);
-  color: #fff;
+  border: 1px solid #f8d17c;
+  background: var(--network-accent);
+  color: #101d25;
   font-family: var(--font-sans), sans-serif;
   font-weight: 700;
+}
+
+.nystar-city-label {
+  border: 0;
+  background: transparent;
+}
+
+.nystar-city-label__text {
+  position: relative;
+  top: var(--city-label-y);
+  left: var(--city-label-x);
+  display: inline-block;
+  width: max-content;
+  color: var(--network-city-label);
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px var(--network-map-bg);
 }
 
 .leaflet-container .leaflet-popup-content-wrapper {
