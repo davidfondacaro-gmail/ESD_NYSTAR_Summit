@@ -57,6 +57,7 @@ export type NystarNetworkData = {
   locations: NystarLocationGroup[]
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
+  tourRegions: string[]
 }
 
 type NystarCsvRow = {
@@ -94,11 +95,23 @@ type CustomerConnectionCsvRow = {
 
 export async function getNystarNetworkData(): Promise<NystarNetworkData> {
   const dataDirectory = join(process.cwd(), "public", "data")
-  const [nystarCsv, customerCsv, connectionsCsv] = await Promise.all([
+  const [nystarCsv, customerCsv, connectionsCsv, mepRegionsJson] =
+    await Promise.all([
     readFile(join(dataDirectory, "nystar-locations.csv"), "utf8"),
     readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
     readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
+    readFile(join(dataDirectory, "ny_mep_regions.geojson"), "utf8"),
   ])
+  const mepRegions = JSON.parse(mepRegionsJson) as {
+    features?: { properties?: { region_name?: string } }[]
+  }
+  const tourRegions = Array.from(
+    new Set(
+      (mepRegions.features ?? [])
+        .map((feature) => feature.properties?.region_name?.trim())
+        .filter((region): region is string => Boolean(region))
+    )
+  ).sort((left, right) => left.localeCompare(right))
   const { data: nystarRows } = Papa.parse<NystarCsvRow>(nystarCsv, {
     header: true,
     skipEmptyLines: true,
@@ -273,6 +286,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
 
   return {
     locations: [...groups.values()],
+    tourRegions,
     categories: [...categoryPrograms.entries()]
       .map(([name, programs]) => ({ name, programs }))
       .sort((a, b) => a.name.localeCompare(b.name)),
