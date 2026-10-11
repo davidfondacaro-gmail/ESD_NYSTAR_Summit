@@ -1,11 +1,18 @@
 "use client"
 
 import L from "leaflet"
-import { useEffect } from "react"
+import { useEffect, useMemo, useRef, type RefObject } from "react"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import { MapContainer, Marker, Popup, TileLayer, useMap } from "react-leaflet"
 
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
+
+type ClusterVisibleMarker = L.Marker & { spiderfy?: () => void }
+
+type MarkerClusterGroupApi = {
+  getVisibleParent: (marker: L.Marker) => ClusterVisibleMarker | null
+  once: (event: "spiderfied", callback: () => void) => unknown
+}
 
 function FitLocations({ locations }: { locations: NystarLocationGroup[] }) {
   const map = useMap()
@@ -51,31 +58,80 @@ function InvalidateMapSize() {
   return null
 }
 
+function locationKey(location: NystarLocationGroup) {
+  return `${location.latitude}-${location.longitude}`
+}
+
+function OpenSelectedProgramPopup({
+  locations,
+  clusterGroupRef,
+  markerRefs,
+  selectedProgramId,
+}: {
+  locations: NystarLocationGroup[]
+  clusterGroupRef: RefObject<MarkerClusterGroupApi | null>
+  markerRefs: RefObject<Map<string, L.Marker>>
+  selectedProgramId: string
+}) {
+  const map = useMap()
+
+  useEffect(() => {
+    if (!selectedProgramId) {
+      return
+    }
+
+    map.closePopup()
+    const matchingLocation = locations.find((location) =>
+      location.assets.some((asset) => asset.id === selectedProgramId)
+    )
+    if (!matchingLocation) {
+      return
+    }
+
+    const marker = markerRefs.current.get(locationKey(matchingLocation))
+    const clusterGroup = clusterGroupRef.current
+    if (!marker || !clusterGroup) {
+      return
+    }
+
+    const visibleParent = clusterGroup.getVisibleParent(marker)
+    if (
+      visibleParent &&
+      visibleParent !== marker &&
+      typeof visibleParent.spiderfy === "function"
+    ) {
+      clusterGroup.once("spiderfied", () => marker.openPopup())
+      visibleParent.spiderfy()
+      return
+    }
+
+    marker.openPopup()
+  }, [clusterGroupRef, locations, map, markerRefs, selectedProgramId])
+
+  return null
+}
+
 function FocusNetworkSelection({
   locations,
-  selectedProgramId,
   selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
-  selectedProgramId: string
   selectedPartnerName: string
 }) {
   const map = useMap()
 
   useEffect(() => {
-    if (!selectedProgramId && !selectedPartnerName) {
+    if (!selectedPartnerName) {
       return
     }
 
     const matchingLocations = locations.filter((location) =>
-      selectedProgramId
-        ? location.assets.some((asset) => asset.id === selectedProgramId)
-        : location.assets.some(
-            (asset) => asset.hostOrganization === selectedPartnerName
-          ) ||
-          location.customers.some(
-            (customer) => customer.name === selectedPartnerName
-          )
+      location.assets.some(
+        (asset) => asset.hostOrganization === selectedPartnerName
+      ) ||
+      location.customers.some(
+        (customer) => customer.name === selectedPartnerName
+      )
     )
 
     if (matchingLocations.length === 1) {
@@ -95,7 +151,7 @@ function FocusNetworkSelection({
         { padding: [48, 48], maxZoom: 9 }
       )
     }
-  }, [locations, map, selectedPartnerName, selectedProgramId])
+  }, [locations, map, selectedPartnerName])
 
   return null
 }
@@ -122,6 +178,19 @@ export default function NystarLeafletMap({
   selectedProgramId: string
   selectedPartnerName: string
 }) {
+  const markerRefs = useRef(new Map<string, L.Marker>())
+  const clusterGroupRef = useRef<MarkerClusterGroupApi | null>(null)
+  const markerPositions = useMemo(() => {
+    const positions = new Map<string, L.LatLng>()
+    for (const location of locations) {
+      positions.set(
+        locationKey(location),
+        L.latLng(location.latitude, location.longitude)
+      )
+    }
+    return positions
+  }, [locations])
+
   return (
     <MapContainer
       className="network-map-canvas"
@@ -137,12 +206,20 @@ export default function NystarLeafletMap({
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
       <FitLocations locations={locations} />
+      <OpenSelectedProgramPopup
+        locations={locations}
+        clusterGroupRef={clusterGroupRef}
+        markerRefs={markerRefs}
+        selectedProgramId={selectedProgramId}
+      />
       <FocusNetworkSelection
         locations={locations}
-        selectedProgramId={selectedProgramId}
         selectedPartnerName={selectedPartnerName}
       />
       <MarkerClusterGroup
+        ref={(clusterGroup: unknown) => {
+          clusterGroupRef.current = clusterGroup as unknown as MarkerClusterGroupApi | null
+        }}
         chunkedLoading
         showCoverageOnHover={false}
         maxClusterRadius={36}
@@ -150,13 +227,18 @@ export default function NystarLeafletMap({
         {locations.map((location) => (
           <Marker
             key={`${location.latitude}-${location.longitude}`}
-            position={[location.latitude, location.longitude]}
+            ref={(marker) => {
+              const key = locationKey(location)
+              if (marker) markerRefs.current.set(key, marker)
+              else markerRefs.current.delete(key)
+            }}
+            position={markerPositions.get(locationKey(location))!}
             icon={markerIcon(
               location.assets.length + location.customers.length
             )}
             title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
           >
-            <Popup>
+            <Popup autoPan={false}>
               <div className="network-popup">
                 <p className="network-popup__place">
                   {location.cities.join(" / ")}, NY · ZIP{" "}
