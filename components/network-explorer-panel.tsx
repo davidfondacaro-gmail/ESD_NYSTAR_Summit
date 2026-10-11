@@ -30,6 +30,7 @@ import type {
 } from "@/lib/nystar-locations"
 
 type ProgramGrouping = "alpha" | "type" | "region"
+type PartnerGrouping = "alpha" | "region"
 type ExplorerSectionId = "program" | "partner" | "connections" | "tour"
 
 function comparePrograms(left: NystarProgramOption, right: NystarProgramOption) {
@@ -323,10 +324,69 @@ export default function NetworkExplorerPanel({
   ).sort((left, right) =>
     left.localeCompare(right, undefined, { sensitivity: "base" })
   )
+  const regionByProgramId = new Map(
+    regions.flatMap((region) =>
+      region.programs.map((program) => [program.id, region.name] as const)
+    )
+  )
+  const regionsByPartner = new Map<string, Set<string>>()
+  const addPartnerRegion = (partner: string, region?: string) => {
+    const partnerRegions = regionsByPartner.get(partner) ?? new Set<string>()
+    partnerRegions.add(region ?? "Unassigned")
+    regionsByPartner.set(partner, partnerRegions)
+  }
+
+  for (const location of locations) {
+    for (const asset of location.assets) {
+      if (asset.hostOrganization) {
+        addPartnerRegion(
+          asset.hostOrganization,
+          regionByProgramId.get(asset.id)
+        )
+      }
+    }
+
+    for (const customer of location.customers) {
+      if (customer.connections.length === 0) {
+        addPartnerRegion(customer.name)
+        continue
+      }
+
+      for (const connection of customer.connections) {
+        addPartnerRegion(
+          customer.name,
+          regionByProgramId.get(connection.assetId)
+        )
+      }
+    }
+  }
+
+  const partnersByRegion = new Map<string, string[]>()
+  for (const partner of innovationPartners) {
+    const partnerRegions = regionsByPartner.get(partner) ?? new Set(["Unassigned"])
+    const region =
+      partnerRegions.size > 1
+        ? "Multiple Regions"
+        : partnerRegions.values().next().value ?? "Unassigned"
+    const partners = partnersByRegion.get(region) ?? []
+    partners.push(partner)
+    partnersByRegion.set(region, partners)
+  }
+  const partnerRegionGroups = [...partnersByRegion.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, partners]) => ({
+      name,
+      partners: partners.sort((left, right) =>
+        left.localeCompare(right, undefined, { sensitivity: "base" })
+      ),
+    }))
 
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
+    "alpha"
+  )
+  const [partnerGrouping, setPartnerGrouping] = useState<PartnerGrouping>(
     "alpha"
   )
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
@@ -351,10 +411,16 @@ export default function NetworkExplorerPanel({
               group: group.name,
             }))
         )
-  const partnerOptions = innovationPartners.map((partner) => ({
-    value: partner,
-    label: partner,
-  }))
+  const partnerOptions =
+    partnerGrouping === "alpha"
+      ? innovationPartners.map((partner) => ({ value: partner, label: partner }))
+      : partnerRegionGroups.flatMap((group) =>
+          group.partners.map((partner) => ({
+            value: partner,
+            label: partner,
+            group: group.name,
+          }))
+        )
 
   return (
     <SidebarProvider className="network-screen">
@@ -446,9 +512,43 @@ export default function NetworkExplorerPanel({
               setOpenSection(open ? "partner" : null)
             }
           >
-            <p className="text-xs text-muted-foreground">
-              {innovationPartners.length} partners
-            </p>
+            <Alert className="border-sidebar-border bg-transparent">
+              <Info aria-hidden="true" />
+              <AlertDescription>
+                Select an innovation partner to view its connections on the map.
+              </AlertDescription>
+            </Alert>
+            <div className="flex items-center justify-between gap-2">
+              <ToggleGroup
+                aria-label="Group innovation partners by"
+                value={[partnerGrouping]}
+                onValueChange={(value) => {
+                  const nextGrouping = value[0]
+                  if (nextGrouping === "alpha" || nextGrouping === "region") {
+                    setPartnerGrouping(nextGrouping)
+                  }
+                }}
+                variant="outline"
+                size="sm"
+                spacing={0}
+              >
+                <ToggleGroupItem
+                  className="drawer-review-control"
+                  value="alpha"
+                >
+                  A to Z
+                </ToggleGroupItem>
+                <ToggleGroupItem
+                  className="drawer-review-control"
+                  value="region"
+                >
+                  NYSTAR Region
+                </ToggleGroupItem>
+              </ToggleGroup>
+              <p className="shrink-0 text-right text-xs text-muted-foreground">
+                {innovationPartners.length} partners
+              </p>
+            </div>
             <ExplorerListbox
               labelledBy="find-partner-heading"
               options={partnerOptions}
@@ -545,6 +645,7 @@ export default function NetworkExplorerPanel({
         <NystarNetworkMap
           locations={locations}
           selectedProgramId={selectedProgramId}
+          selectedPartnerName={selectedPartnerName}
         />
       </SidebarInset>
     </SidebarProvider>

@@ -46,27 +46,36 @@ function locationKey(location: NystarLocationGroup) {
   return `${location.latitude}-${location.longitude}`
 }
 
-function OpenSelectedProgramPopup({
+function OpenSelectedMapSelectionPopup({
   locations,
   clusterGroupRef,
   markerRefs,
   selectedProgramId,
+  selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
   clusterGroupRef: RefObject<MarkerClusterGroupApi | null>
   markerRefs: RefObject<Map<string, L.Marker>>
   selectedProgramId: string
+  selectedPartnerName: string
 }) {
   const map = useMap()
 
   useEffect(() => {
-    if (!selectedProgramId) {
+    if (!selectedProgramId && !selectedPartnerName) {
       return
     }
 
     map.closePopup()
     const matchingLocation = locations.find((location) =>
-      location.assets.some((asset) => asset.id === selectedProgramId)
+      selectedProgramId
+        ? location.assets.some((asset) => asset.id === selectedProgramId)
+        : location.assets.some(
+            (asset) => asset.hostOrganization === selectedPartnerName
+          ) ||
+          location.customers.some(
+            (customer) => customer.name === selectedPartnerName
+          )
     )
     if (!matchingLocation) {
       return
@@ -90,7 +99,14 @@ function OpenSelectedProgramPopup({
     }
 
     marker.openPopup()
-  }, [clusterGroupRef, locations, map, markerRefs, selectedProgramId])
+  }, [
+    clusterGroupRef,
+    locations,
+    map,
+    markerRefs,
+    selectedPartnerName,
+    selectedProgramId,
+  ])
 
   return null
 }
@@ -111,9 +127,11 @@ function markerIcon(count: number) {
 export default function NystarLeafletMap({
   locations,
   selectedProgramId,
+  selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
+  selectedPartnerName: string
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterGroupRef = useRef<MarkerClusterGroupApi | null>(null)
@@ -146,11 +164,12 @@ export default function NystarLeafletMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
       />
-      <OpenSelectedProgramPopup
+      <OpenSelectedMapSelectionPopup
         locations={locations}
         clusterGroupRef={clusterGroupRef}
         markerRefs={markerRefs}
         selectedProgramId={selectedProgramId}
+        selectedPartnerName={selectedPartnerName}
       />
       <MarkerClusterGroup
         ref={(clusterGroup: unknown) => {
