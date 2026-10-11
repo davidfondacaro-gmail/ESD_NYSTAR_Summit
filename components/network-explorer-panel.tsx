@@ -538,7 +538,6 @@ export default function NetworkExplorerPanel({
         <NystarNetworkMap
           locations={locations}
           selectedProgramId={selectedProgramId}
-          selectedPartnerName={selectedPartnerName}
         />
       </SidebarInset>
     </SidebarProvider>
