@@ -16,6 +16,7 @@ import { useSidebar } from "@/components/ui/sidebar"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
+const DEFAULT_MAP_ZOOM = 7.25
 const CATEGORY_COLORS: Record<string, string> = {
   "Centers for Advanced Technology": "#72a7c0",
   "Centers for Advanced Technology--NO LONGER OPERATING": "#c7b85d",
@@ -156,9 +157,9 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
     }
 
     map.dragging.disable()
-    map.setMinZoom(7)
-    map.setMaxZoom(7)
-    map.setView(DEFAULT_MAP_CENTER, 7, { animate: false })
+    map.setMinZoom(DEFAULT_MAP_ZOOM)
+    map.setMaxZoom(DEFAULT_MAP_ZOOM)
+    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
   }, [enabled, map])
 
   return enabled ? <ZoomControl position="bottomright" /> : null
@@ -379,9 +380,11 @@ export default function NystarLeafletMap({
       <MapContainer
       className="network-map-canvas"
       center={DEFAULT_MAP_CENTER}
-      zoom={7}
+      zoom={DEFAULT_MAP_ZOOM}
       minZoom={5}
       maxZoom={12}
+      zoomSnap={0.25}
+      zoomDelta={0.25}
       zoomControl={false}
       dragging={false}
       scrollWheelZoom={false}
