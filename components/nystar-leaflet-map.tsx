@@ -351,26 +351,58 @@ export default function NystarLeafletMap({
           >
             <Popup autoPan={false}>
               <div className="network-popup">
-                <p className="network-popup__place">
-                  {location.cities.join(" / ")}, NY · ZIP{" "}
-                  {location.zipCodes.join(", ")} · Approximate ZIP center
-                </p>
+                {location.assets.length === 0 && (
+                  <p className="network-popup__place">
+                    {location.cities.join(" / ")}, NY · ZIP{" "}
+                    {location.zipCodes.join(", ")} · Approximate ZIP center
+                  </p>
+                )}
                 <ul className="network-popup__assets">
                   {location.assets.map((asset) => (
-                    <li key={`${asset.name}-${asset.hostOrganization}`}>
-                      <span className="network-popup__category">
-                        {asset.category}
-                      </span>
+                    <li
+                      className="network-popup__asset"
+                      key={`${asset.name}-${asset.hostOrganization}`}
+                    >
                       <strong className="network-popup__name">
                         {asset.name}
                       </strong>
-                      <span className="network-popup__host">
-                        {asset.hostOrganization}
+                      <div className="network-popup__category-row">
+                        <span
+                          className="network-popup__diamond"
+                          style={{
+                            "--marker-color":
+                              CATEGORY_COLORS[asset.category] ??
+                              "var(--network-customer-marker)",
+                          } as React.CSSProperties}
+                          aria-hidden="true"
+                        />
+                        <span className="network-popup__primary">
+                          {asset.category}
+                        </span>
+                      </div>
+                      {asset.hostOrganization && (
+                        <span className="network-popup__category">
+                          {asset.hostOrganization}
+                        </span>
+                      )}
+                      <span className="network-popup__category">
+                        {[
+                          asset.addressLine1,
+                          asset.addressLine2,
+                          [asset.city, asset.state, asset.zipCode]
+                            .filter(Boolean)
+                            .join(", "),
+                        ]
+                          .filter(Boolean)
+                          .join(", ")}
                       </span>
                     </li>
                   ))}
                   {location.customers.map((customer) => (
-                    <li key={customer.id}>
+                    <li
+                      className="network-popup__customer"
+                      key={customer.id}
+                    >
                       <span className="network-popup__category">
                         Customer organization
                       </span>

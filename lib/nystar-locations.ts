@@ -11,6 +11,11 @@ export type NystarAsset = {
   name: string
   category: string
   hostOrganization: string
+  addressLine1: string
+  addressLine2: string
+  city: string
+  state: string
+  zipCode: string
 }
 
 export type NystarConnectionType = "Existing" | "Desired"
@@ -172,7 +177,17 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
         .filter(Boolean)
         .join(", ")
       const details = [hostOrganization, locality].filter(Boolean).join(" · ")
-      const asset: NystarAsset = { id, name, category, hostOrganization }
+      const asset: NystarAsset = {
+        id,
+        name,
+        category,
+        hostOrganization,
+        addressLine1: row["Address Line 1"]?.trim() ?? "",
+        addressLine2: row["Address Line 2"]?.trim() ?? "",
+        city,
+        state,
+        zipCode,
+      }
       const program = { id, name, category, details }
       const categoryList = categoryPrograms.get(category) ?? []
       const regionList = regionPrograms.get(region) ?? []
@@ -219,6 +234,11 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       name,
       category: metadata?.category ?? category,
       hostOrganization,
+      addressLine1: row["Address Line 1"]?.trim() ?? "",
+      addressLine2: row["Address Line 2"]?.trim() ?? "",
+      city,
+      state,
+      zipCode,
     })
   }
 
