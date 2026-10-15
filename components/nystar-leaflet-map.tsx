@@ -164,9 +164,20 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
   return enabled ? <ZoomControl position="bottomright" /> : null
 }
 
-function MepRegionsLayer() {
+function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
   const map = useMap()
   const { resolvedTheme } = useTheme()
+  const regionLabelsLayerRef = useRef<L.LayerGroup | null>(null)
+  const showRegionLabelsRef = useRef(showRegionLabels)
+
+  useEffect(() => {
+    showRegionLabelsRef.current = showRegionLabels
+    const labelsLayer = regionLabelsLayerRef.current
+    if (!labelsLayer) return
+
+    if (showRegionLabels) labelsLayer.addTo(map)
+    else labelsLayer.remove()
+  }, [map, showRegionLabels])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -232,7 +243,9 @@ function MepRegionsLayer() {
             }).addTo(labelsLayer)
           },
         }).addTo(map)
-        regionLabelsLayer = labelsLayer.addTo(map)
+        regionLabelsLayer = labelsLayer
+        regionLabelsLayerRef.current = labelsLayer
+        if (showRegionLabelsRef.current) labelsLayer.addTo(map)
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load NY MEP regions.", error)
@@ -246,6 +259,9 @@ function MepRegionsLayer() {
       controller.abort()
       regionsLayer?.remove()
       regionLabelsLayer?.remove()
+      if (regionLabelsLayerRef.current === regionLabelsLayer) {
+        regionLabelsLayerRef.current = null
+      }
     }
   }, [map, resolvedTheme])
 
@@ -333,12 +349,16 @@ export default function NystarLeafletMap({
   selectedPartnerName,
   showZoomControls,
   showMapLegend,
+  showRegionLabels,
+  showCityLabels,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
   showZoomControls: boolean
   showMapLegend: boolean
+  showRegionLabels: boolean
+  showCityLabels: boolean
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const markerPositions = useMemo(() => {
@@ -374,7 +394,7 @@ export default function NystarLeafletMap({
       <InvalidateMapSize />
       <MapZoomControls enabled={showZoomControls} />
       <RecenterMapOnSidebarClose />
-      <MepRegionsLayer />
+      <MepRegionsLayer showRegionLabels={showRegionLabels} />
       <OpenSelectedMapSelectionPopup
         locations={locations}
         markerRefs={markerRefs}
@@ -481,7 +501,7 @@ export default function NystarLeafletMap({
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
       >
-        {cityLabels.map(({ name, position, offset }) => (
+        {showCityLabels && cityLabels.map(({ name, position, offset }) => (
           <Marker
             key={name}
             position={position}

@@ -15,12 +15,16 @@ export default function NystarNetworkMap({
   selectedPartnerName,
   showZoomControls,
   showMapLegend,
+  showRegionLabels,
+  showCityLabels,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
   showZoomControls: boolean
   showMapLegend: boolean
+  showRegionLabels: boolean
+  showCityLabels: boolean
 }) {
   return (
     <LeafletMap
@@ -29,6 +33,8 @@ export default function NystarNetworkMap({
       selectedPartnerName={selectedPartnerName}
       showZoomControls={showZoomControls}
       showMapLegend={showMapLegend}
+      showRegionLabels={showRegionLabels}
+      showCityLabels={showCityLabels}
     />
   )
 }

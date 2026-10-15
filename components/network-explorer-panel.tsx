@@ -9,6 +9,7 @@ import {
   Info,
   Link,
   Star,
+  Tag,
   ZoomIn,
 } from "lucide-react"
 
@@ -16,6 +17,12 @@ import AddConnectionsDrawer from "@/components/add-connections-drawer"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -437,6 +444,8 @@ export default function NetworkExplorerPanel({
 
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
+  const [showRegionLabels, setShowRegionLabels] = useState(true)
+  const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
@@ -685,6 +694,35 @@ export default function NetworkExplorerPanel({
         </SidebarContent>
         <SidebarFooter className="items-end">
           <div className="flex items-center gap-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="Toggle labels"
+                    title="Toggle labels"
+                  />
+                }
+              >
+                <Tag aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" side="top" className="w-48">
+                <DropdownMenuCheckboxItem
+                  checked={showRegionLabels}
+                  onCheckedChange={setShowRegionLabels}
+                >
+                  {showRegionLabels ? "Hide Region Labels" : "Show Region Labels"}
+                </DropdownMenuCheckboxItem>
+                <DropdownMenuCheckboxItem
+                  checked={showCityLabels}
+                  onCheckedChange={setShowCityLabels}
+                >
+                  {showCityLabels ? "Hide City Labels" : "Show City Labels"}
+                </DropdownMenuCheckboxItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Toggle
               aria-label="Toggle map zoom controls"
               title="Toggle map zoom controls"
@@ -720,6 +758,8 @@ export default function NetworkExplorerPanel({
           selectedPartnerName={selectedPartnerName}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
+          showRegionLabels={showRegionLabels}
+          showCityLabels={showCityLabels}
         />
       </SidebarInset>
     </SidebarProvider>
