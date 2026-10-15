@@ -2,6 +2,7 @@
 
 import L from "leaflet"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
+import { useTheme } from "next-themes"
 import {
   MapContainer,
   Marker,
@@ -15,18 +16,17 @@ import { useSidebar } from "@/components/ui/sidebar"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
-const CUSTOMER_MARKER_COLOR = "#c3d1da"
 const CATEGORY_COLORS: Record<string, string> = {
-  "Centers for Advanced Technology": "#56b4e9",
-  "Centers for Advanced Technology--NO LONGER OPERATING": "#f0e442",
-  "Centers of Excellence": "#e69f00",
-  "Innovation Hot Spot": "#009e73",
-  "New York Manufacturing Extension Partnership": "#0072b2",
-  "New York State Accelerators and Competition": "#d55e00",
-  "New York State Accelerators and Competitions": "#cc79a7",
-  "NY Fashion Innovation Center": "#e76bf3",
-  "NY Global Entrepreneurs Program": "#00bfc4",
-  "NYS-Certified Business Incubator": "#b79f00",
+  "Centers for Advanced Technology": "#72a7c0",
+  "Centers for Advanced Technology--NO LONGER OPERATING": "#c7b85d",
+  "Centers of Excellence": "#c58b32",
+  "Innovation Hot Spot": "#4e927a",
+  "New York Manufacturing Extension Partnership": "#4786a4",
+  "New York State Accelerators and Competition": "#ba7050",
+  "New York State Accelerators and Competitions": "#ad839a",
+  "NY Fashion Innovation Center": "#a97fb2",
+  "NY Global Entrepreneurs Program": "#4f9697",
+  "NYS-Certified Business Incubator": "#a4934f",
 }
 
 const cityLabels = [
@@ -153,6 +153,7 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
 
 function MepRegionsLayer() {
   const map = useMap()
+  const { resolvedTheme } = useTheme()
 
   useEffect(() => {
     const controller = new AbortController()
@@ -175,10 +176,14 @@ function MepRegionsLayer() {
         regionsLayer = L.geoJSON(geoJson, {
           interactive: false,
           style: {
-            color: "#35546b",
+            color: getComputedStyle(document.documentElement)
+              .getPropertyValue("--network-region-outline")
+              .trim(),
             weight: 1.25,
             opacity: 0.9,
-            fillColor: "#142b3b",
+            fillColor: getComputedStyle(document.documentElement)
+              .getPropertyValue("--network-region-fill")
+              .trim(),
             fillOpacity: 0.98,
           },
         }).addTo(map)
@@ -195,7 +200,7 @@ function MepRegionsLayer() {
       controller.abort()
       regionsLayer?.remove()
     }
-  }, [map])
+  }, [map, resolvedTheme])
 
   return null
 }
@@ -247,7 +252,7 @@ function markerIcon(categories: string[], hasInnovationPartner: boolean) {
   const markerCategories = [...new Set(categories)]
   const stars = markerCategories
     .map((category) => {
-      const color = CATEGORY_COLORS[category] ?? CUSTOMER_MARKER_COLOR
+      const color = CATEGORY_COLORS[category] ?? "var(--network-customer-marker)"
       return `<span class="nystar-marker__star" style="--marker-color:${color}"></span>`
     })
     .join("")
@@ -423,7 +428,7 @@ export default function NystarLeafletMap({
                   <span
                     className="network-map-legend__star"
                     style={{
-                      "--marker-color": CATEGORY_COLORS[category] ?? CUSTOMER_MARKER_COLOR,
+                      "--marker-color": CATEGORY_COLORS[category] ?? "var(--network-customer-marker)",
                     } as React.CSSProperties}
                     aria-hidden="true"
                   />
