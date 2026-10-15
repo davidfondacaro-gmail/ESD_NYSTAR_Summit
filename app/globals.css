@@ -454,13 +454,68 @@ body {
   background: transparent;
 }
 
+.nystar-region-label {
+  border: 0;
+  background: transparent;
+}
+
+.nystar-region-label__text {
+  position: relative;
+  display: block;
+  width: max-content;
+  transform: translate(
+    calc(-50% + var(--region-label-x, 0px)),
+    calc(-50% + var(--region-label-y, 0px))
+  );
+  color: var(--network-city-label);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  white-space: nowrap;
+  text-shadow: 0 1px 3px var(--network-map-bg);
+}
+
+.nystar-region-label__text--callout::before,
+.nystar-region-label__text--callout::after {
+  position: absolute;
+  border-color: var(--network-city-label);
+  border-style: solid;
+  content: "";
+  pointer-events: none;
+}
+
+.nystar-region-label__text--callout::before {
+  top: 50%;
+  left: 100%;
+  width: calc(0px - var(--region-label-x) - 50%);
+  border-width: 1px 0 0;
+}
+
+.nystar-region-label__text--callout::after {
+  top: 50%;
+  left: calc(100% - var(--region-label-x) - 50%);
+  height: calc(0px - var(--region-label-y));
+  border-width: 0 0 0 1px;
+}
+
+.nystar-region-label__text--callout-left::before {
+  right: 100%;
+  left: auto;
+  width: calc(var(--region-label-x) - 50%);
+}
+
+.nystar-region-label__text--callout-left::after {
+  left: calc(50% - var(--region-label-x));
+}
+
 .nystar-city-label__text {
   position: relative;
   top: var(--city-label-y);
   left: var(--city-label-x);
   display: inline-block;
   width: max-content;
-  color: var(--network-city-label);
+  color: var(--network-ink);
   font-size: 10px;
   font-weight: 500;
   line-height: 1;

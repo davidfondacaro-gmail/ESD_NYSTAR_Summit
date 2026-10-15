@@ -29,6 +29,19 @@ const CATEGORY_COLORS: Record<string, string> = {
   "NYS-Certified Business Incubator": "#a4934f",
 }
 
+const REGION_LABEL_OFFSETS: Record<string, [number, number]> = {
+  "Mohawk Valley": [36, 24],
+  "North Country": [0, -15],
+  "Western New York": [0, 48],
+  "New York City": [-100, -60],
+  "Long Island": [100, -80],
+  "Hudson Valley": [0, -60],
+  "Central New York": [0, 55],
+}
+
+const REGION_LABEL_CALLOUTS = new Set(["New York City", "Long Island"])
+const REGION_LABEL_CALLOUT_LEFT = new Set(["Long Island"])
+
 const cityLabels = [
   {
     name: "Albany",
@@ -158,6 +171,7 @@ function MepRegionsLayer() {
   useEffect(() => {
     const controller = new AbortController()
     let regionsLayer: L.GeoJSON | null = null
+    let regionLabelsLayer: L.LayerGroup | null = null
 
     async function loadRegions() {
       try {
@@ -173,6 +187,12 @@ function MepRegionsLayer() {
           return
         }
 
+        const regionLabelsPane =
+          map.getPane("region-labels") ?? map.createPane("region-labels")
+        regionLabelsPane.style.zIndex = "590"
+        regionLabelsPane.style.pointerEvents = "none"
+        const labelsLayer = L.layerGroup()
+
         regionsLayer = L.geoJSON(geoJson, {
           interactive: false,
           style: {
@@ -186,7 +206,33 @@ function MepRegionsLayer() {
               .trim(),
             fillOpacity: 0.98,
           },
+          onEachFeature(feature, layer) {
+            const regionName =
+              typeof feature.properties?.region_name === "string"
+                ? feature.properties.region_name.trim()
+                : ""
+            if (!regionName || !(layer instanceof L.Polygon)) {
+              return
+            }
+
+            const [offsetX, offsetY] = REGION_LABEL_OFFSETS[regionName] ?? [0, 0]
+            const calloutClass = REGION_LABEL_CALLOUTS.has(regionName)
+              ? ` nystar-region-label__text--callout${REGION_LABEL_CALLOUT_LEFT.has(regionName) ? " nystar-region-label__text--callout-left" : ""}`
+              : ""
+            L.marker(layer.getBounds().getCenter(), {
+              pane: "region-labels",
+              interactive: false,
+              keyboard: false,
+              icon: L.divIcon({
+                className: "nystar-region-label",
+                html: `<span class="nystar-region-label__text${calloutClass}" style="--region-label-x:${offsetX}px;--region-label-y:${offsetY}px">${regionName}</span>`,
+                iconSize: [0, 0],
+                iconAnchor: [0, 0],
+              }),
+            }).addTo(labelsLayer)
+          },
         }).addTo(map)
+        regionLabelsLayer = labelsLayer.addTo(map)
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load NY MEP regions.", error)
@@ -199,6 +245,7 @@ function MepRegionsLayer() {
     return () => {
       controller.abort()
       regionsLayer?.remove()
+      regionLabelsLayer?.remove()
     }
   }, [map, resolvedTheme])
 
@@ -347,7 +394,6 @@ export default function NystarLeafletMap({
               location.assets.map((asset) => asset.category),
               location.customers.length > 0
             )}
-            title={`${location.assets.length + location.customers.length} network ${location.assets.length + location.customers.length === 1 ? "location" : "locations"} near ${location.cities.join(", ")}`}
           >
             <Popup autoPan={false}>
               <div className="network-popup">
