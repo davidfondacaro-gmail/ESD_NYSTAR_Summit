@@ -519,12 +519,6 @@ export default function NystarLeafletMap({
           >
             <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
               <div className="network-popup">
-                {location.assets.length === 0 && (
-                  <p className="network-popup__place">
-                    {location.cities.join(" / ")}, NY · ZIP{" "}
-                    {location.zipCodes.join(", ")} · Approximate ZIP center
-                  </p>
-                )}
                 <ul className="network-popup__assets">
                   {location.assets.map((asset) => (
                     <li
@@ -571,20 +565,31 @@ export default function NystarLeafletMap({
                       className="network-popup__customer"
                       key={customer.id}
                     >
-                      <span className="network-popup__category">
-                        Customer organization
-                      </span>
                       <strong className="network-popup__name">
                         {customer.name}
                       </strong>
-                      <span className="network-popup__host">
-                        {[customer.addressLine1, customer.addressLine2]
-                          .filter(Boolean)
-                          .join(", ")}
+                      <div className="network-popup__category-row">
+                        <span className="network-popup__dot" aria-hidden="true" />
+                        <span className="network-popup__primary">
+                          NYSTAR Innovation Partner
+                        </span>
+                      </div>
+                      {(customer.addressLine1 || customer.addressLine2) && (
+                        <span className="network-popup__category">
+                          {[customer.addressLine1, customer.addressLine2]
+                            .filter(Boolean)
+                            .join(", ")}
+                        </span>
+                      )}
+                      <span className="network-popup__category">
+                        {[
+                          customer.city,
+                          [customer.state, customer.zipCode].filter(Boolean).join(" "),
+                        ].filter(Boolean).join(", ")}
                       </span>
                       {customer.connections.map((connection) => (
                         <span
-                          className="network-popup__host"
+                          className="network-popup__category"
                           key={connection.id}
                         >
                           {connection.connectionType}: {connection.assetName}

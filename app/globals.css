@@ -361,7 +361,8 @@ body {
 }
 
 .nystar-marker__partner-dot,
-.network-map-legend__dot {
+.network-map-legend__dot,
+.network-popup__dot {
   display: block;
   width: 10px;
   height: 10px;
@@ -578,7 +579,8 @@ body {
   padding-top: 8px;
 }
 
-.network-popup__assets .network-popup__asset {
+.network-popup__assets .network-popup__asset,
+.network-popup__assets .network-popup__customer {
   gap: 1px;
   border-top: 0;
   padding-top: 0;
@@ -594,6 +596,10 @@ body {
   align-items: center;
   gap: 7px;
   margin-bottom: 6px;
+}
+
+.network-popup__dot {
+  flex: 0 0 auto;
 }
 
 .network-popup__diamond {

@@ -34,6 +34,9 @@ export type NystarCustomerLocation = {
   name: string
   addressLine1: string
   addressLine2: string
+  city: string
+  state: string
+  zipCode: string
   connections: NystarCustomerConnection[]
 }
 
@@ -319,6 +322,9 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       name,
       addressLine1: row["Address Line 1"]?.trim() ?? "",
       addressLine2: row["Address Line 2"]?.trim() ?? "",
+      city,
+      state,
+      zipCode,
       connections: connectionsByCustomerId.get(customerId) ?? [],
     })
   }
