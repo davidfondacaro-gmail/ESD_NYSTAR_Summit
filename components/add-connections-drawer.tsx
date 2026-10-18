@@ -485,7 +485,7 @@ export default function AddConnectionsDrawer({
                                 className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                                 data-icon="inline-start"
                               />
-                              <span>{group.name}</span>
+                              <span>{groupingMode === "region" ? `- ${group.name}` : group.name}</span>
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {group.programs.length}
                               </span>
