@@ -8,6 +8,8 @@ import Papa from "papaparse"
 import { revalidatePath } from "next/cache"
 import zipcodes from "zipcodes"
 
+import { regionForPoint } from "@/lib/nystar-regions"
+
 export const runtime = "nodejs"
 
 const dataDirectory = join(process.cwd(), "public", "data")
@@ -16,12 +18,14 @@ const nystarCsvPath = join(
   "nystar-innovation-assets-map-base-layer-lgw.csv"
 )
 const customerCsvPath = join(dataDirectory, "customer-locations.csv")
+const regionsPath = join(dataDirectory, "ny_mep_regions.geojson")
 const connectionsCsvPath = join(
   dataDirectory,
   "nystar-customer-connections.csv"
 )
 const customerHeaders = [
   "Customer ID",
+  "Region",
   "Organization Name",
   "Address Line 1",
   "Address Line 2",
@@ -241,7 +245,11 @@ export async function POST(request: Request) {
   }
 
   try {
-    const nystarCsv = await readFile(nystarCsvPath, "utf8")
+    const [nystarCsv, regionsText] = await Promise.all([
+      readFile(nystarCsvPath, "utf8"),
+      readFile(regionsPath, "utf8"),
+    ])
+    const region = regionForPoint(coordinates, JSON.parse(regionsText))
     const { data: nystarRows } = Papa.parse<NystarCsvRow>(nystarCsv, {
       header: true,
       skipEmptyLines: true,
@@ -282,6 +290,7 @@ export async function POST(request: Request) {
     const customerId = await appendCustomerAndConnections(
       [
         "",
+        region,
         organizationName,
         addressLine1,
         addressLine2,

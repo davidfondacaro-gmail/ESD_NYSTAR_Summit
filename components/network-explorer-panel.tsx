@@ -375,20 +375,14 @@ export default function NetworkExplorerPanel({
   const innovationPartners = Array.from(
     new Set(
       locations
-        .flatMap((location) => [
-          ...location.assets.map((asset) => asset.hostOrganization),
-          ...location.customers.map((customer) => customer.name),
-        ])
+        .flatMap((location) =>
+          location.customers.map((customer) => customer.name)
+        )
         .map((name) => name.trim())
         .filter(Boolean)
     )
   ).sort((left, right) =>
     left.localeCompare(right, undefined, { sensitivity: "base" })
-  )
-  const regionByProgramId = new Map(
-    regions.flatMap((region) =>
-      region.programs.map((program) => [program.id, region.name] as const)
-    )
   )
   const regionsByPartner = new Map<string, Set<string>>()
   const addPartnerRegion = (partner: string, region?: string) => {
@@ -398,27 +392,8 @@ export default function NetworkExplorerPanel({
   }
 
   for (const location of locations) {
-    for (const asset of location.assets) {
-      if (asset.hostOrganization) {
-        addPartnerRegion(
-          asset.hostOrganization,
-          regionByProgramId.get(asset.id)
-        )
-      }
-    }
-
     for (const customer of location.customers) {
-      if (customer.connections.length === 0) {
-        addPartnerRegion(customer.name)
-        continue
-      }
-
-      for (const connection of customer.connections) {
-        addPartnerRegion(
-          customer.name,
-          regionByProgramId.get(connection.assetId)
-        )
-      }
+      addPartnerRegion(customer.name.trim(), customer.region)
     }
   }
 

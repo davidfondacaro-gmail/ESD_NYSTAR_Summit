@@ -31,6 +31,7 @@ export type NystarCustomerConnection = {
 
 export type NystarCustomerLocation = {
   id: string
+  region: string
   name: string
   addressLine1: string
   addressLine2: string
@@ -83,6 +84,7 @@ type NystarCsvRow = {
 
 type CustomerCsvRow = {
   "Customer ID": string
+  Region: string
   "Organization Name": string
   "Address Line 1": string
   "Address Line 2": string
@@ -319,6 +321,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
 
     group.customers.push({
       id: customerId,
+      region: row.Region?.trim() || "Unassigned",
       name,
       addressLine1: row["Address Line 1"]?.trim() ?? "",
       addressLine2: row["Address Line 2"]?.trim() ?? "",

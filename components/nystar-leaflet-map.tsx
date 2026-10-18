@@ -416,10 +416,7 @@ function OpenSelectedMapSelectionPopup({
     const matchingLocation = locations.find((location) =>
       selectedProgramId
         ? location.assets.some((asset) => asset.id === selectedProgramId)
-        : location.assets.some(
-            (asset) => asset.hostOrganization === selectedPartnerName
-          ) ||
-          location.customers.some(
+        : location.customers.some(
             (customer) => customer.name === selectedPartnerName
           )
     )
