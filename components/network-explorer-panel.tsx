@@ -306,9 +306,11 @@ function ExplorerSection({
 function CollapsedExplorerNavigation({
   openSection,
   onSelectSection,
+  showTour,
 }: {
   openSection: ExplorerSectionId | null
   onSelectSection: (section: ExplorerSectionId) => void
+  showTour: boolean
 }) {
   const { setOpen } = useSidebar()
 
@@ -338,7 +340,7 @@ function CollapsedExplorerNavigation({
   return (
     <SidebarGroup className="hidden p-0 group-data-[collapsible=icon]:block">
       <SidebarMenu className="gap-1">
-        {items.map(({ id, label, icon: Icon }) => (
+        {items.filter(({ id }) => id !== "tour" || showTour).map(({ id, label, icon: Icon }) => (
           <SidebarMenuItem key={id}>
             <SidebarMenuButton
               aria-label={label}
@@ -424,6 +426,7 @@ export default function NetworkExplorerPanel({
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
+  const [showTour, setShowTour] = useState(true)
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
     "alpha"
   )
@@ -479,6 +482,7 @@ export default function NetworkExplorerPanel({
         </SidebarHeader>
         <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
           <CollapsedExplorerNavigation
+            showTour={showTour}
             openSection={openSection}
             onSelectSection={setOpenSection}
           />
@@ -633,51 +637,53 @@ export default function NetworkExplorerPanel({
             <AddConnectionsDrawer categories={categories} regions={regions} />
           </ExplorerSection>
 
-          <ExplorerSection
-            headingId="guided-tour-heading"
-            icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
-            title="Take a Guided Tour of the Network"
-            open={openSection === "tour"}
-            onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
-          >
-            <Alert className="border-sidebar-border bg-transparent">
-              <Info aria-hidden="true" />
-              <AlertDescription>
-                Select a region below to start your tour.
-              </AlertDescription>
-            </Alert>
-            <ExplorerListbox
-              labelledBy="guided-tour-heading"
-              options={tourRegionOptions}
-              value={selectedTourRegion}
-              visibleRows={6}
-              onValueChange={setSelectedTourRegion}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
-                onClick={() => setTourStarted((started) => !started)}
-              >
-                {tourStarted ? "Exit Tour" : "Start Tour"}
-              </Button>
-              {tourStarted && (
-                <div className="ml-auto flex items-center gap-2">
-                  <Button type="button" variant="brand-outline" size="sm">
-                    Next
-                  </Button>
-                  <Button type="button" variant="brand-outline" size="sm">
-                    Auto
-                  </Button>
-                </div>
-              )}
-            </div>
-          </ExplorerSection>
+          {showTour && (
+            <ExplorerSection
+              headingId="guided-tour-heading"
+              icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
+              title="Take a Guided Tour of the Network"
+              open={openSection === "tour"}
+              onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
+            >
+              <Alert className="border-sidebar-border bg-transparent">
+                <Info aria-hidden="true" />
+                <AlertDescription>
+                  Select a region below to start your tour.
+                </AlertDescription>
+              </Alert>
+              <ExplorerListbox
+                labelledBy="guided-tour-heading"
+                options={tourRegionOptions}
+                value={selectedTourRegion}
+                visibleRows={6}
+                onValueChange={setSelectedTourRegion}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
+                  onClick={() => setTourStarted((started) => !started)}
+                >
+                  {tourStarted ? "Exit Tour" : "Start Tour"}
+                </Button>
+                {tourStarted && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button type="button" variant="brand-outline" size="sm">
+                      Next
+                    </Button>
+                    <Button type="button" variant="brand-outline" size="sm">
+                      Auto
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </ExplorerSection>
+          )}
         </SidebarContent>
         <SidebarFooter className="items-end">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -727,6 +733,25 @@ export default function NetworkExplorerPanel({
             >
               <FileText aria-hidden="true" />
             </Toggle>
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle tour"
+                pressed={showTour}
+                onPressedChange={(visible) => {
+                  setShowTour(visible)
+                  if (!visible) {
+                    setTourStarted(false)
+                    setOpenSection((section) => section === "tour" ? null : section)
+                  }
+                }}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <ArrowRight aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle tour</TooltipContent>
+            </Tooltip>
             <ThemeToggleButton />
           </div>
         </SidebarFooter>
