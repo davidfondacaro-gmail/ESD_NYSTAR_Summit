@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto"
 import { readFile, writeFile } from "node:fs/promises"
 import { join } from "node:path"
 
@@ -24,14 +23,6 @@ const mapFields = [
   "Address Confidence",
   "Address Verification Note",
 ]
-
-function normalize(value) {
-  return String(value ?? "")
-    .normalize("NFKC")
-    .trim()
-    .toLocaleLowerCase()
-    .replace(/\s+/g, " ")
-}
 
 function containsRing(point, ring) {
   let inside = false
@@ -110,25 +101,6 @@ function regionForPoint(point, features) {
   )
 }
 
-function generatedId(row, occurrences) {
-  const identity = [
-    row["NYSTAR Program Category"],
-    row["Asset / Program Name"],
-    row["Host Organization"],
-    row["Address Line 1"],
-    row["Address Line 2"],
-    row.City,
-    row.State,
-    row["ZIP Code"],
-  ]
-    .map(normalize)
-    .join("\u001f")
-  const hash = createHash("sha256").update(identity).digest("hex").slice(0, 12)
-  const occurrence = (occurrences.get(hash) ?? 0) + 1
-  occurrences.set(hash, occurrence)
-  return `NYSTAR-MAP-${hash.toUpperCase()}${occurrence > 1 ? `-${occurrence}` : ""}`
-}
-
 async function main() {
   const [mapCsv, geoJsonText] = await Promise.all([
     readFile(mapCsvPath, "utf8"),
@@ -174,7 +146,17 @@ async function main() {
     }
   }
   const assignedIds = new Set()
-  const idOccurrences = new Map()
+  let highestIdNumber = 0
+  for (const row of mapRows) {
+    const match = /^NYSTAR-(\d+)$/.exec(row.existingId)
+    if (match) {
+      const idNumber = Number(match[1])
+      if (!Number.isSafeInteger(idNumber)) {
+        throw new Error("Program ID exceeds the supported numeric range.")
+      }
+      highestIdNumber = Math.max(highestIdNumber, idNumber)
+    }
+  }
   const summary = {
     total: mapRows.length,
     preservedIds: 0,
@@ -188,16 +170,17 @@ async function main() {
   for (const row of mapRows) {
     let id = row.existingId
     if (
-      id &&
+      /^NYSTAR-\d{3,}$/.test(id) &&
       existingIdCounts.get(id) === 1 &&
       !assignedIds.has(id)
     ) {
       summary.preservedIds += 1
     } else {
-      id = generatedId(row, idOccurrences)
-      while (assignedIds.has(id)) {
-        id = generatedId(row, idOccurrences)
+      highestIdNumber += 1
+      if (!Number.isSafeInteger(highestIdNumber)) {
+        throw new Error("Program ID exceeds the supported numeric range.")
       }
+      id = `NYSTAR-${String(highestIdNumber).padStart(3, "0")}`
       summary.generatedIds += 1
       summary.unmatchedRecords.push({
         category: row["NYSTAR Program Category"],

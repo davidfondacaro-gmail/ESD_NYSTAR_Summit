@@ -1,6 +1,6 @@
-Customer ID,Organization Name,Address Line 1,Address Line 2,City,State,ZIP Code,Address Confidence,Address Verification Note,Xlong,Ylat
-CUS-62fb2fc5-720d-471d-a493-a196ffcaef9e,Schatz Bearing,10 Fairview Ave,,Poughkeepsie,NY,12601,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-73.9117,41.7035
-CUS-58649b43-7852-4e28-bc77-687c932f148e,Z-Axis,1916 Route 96,,Phelps,NY,14532,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-77.0473,42.9582
-CUS-40bc0261-3cfa-4103-90d1-1d26dd333f70,StemCultures,150 New Scotland Ave,,Albany,NY,12208,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-73.7964,42.656
-CUS-57dc25fe-4b3f-4dd8-b9a0-5a840abd84ca,Ameritool Mfg,64 Corporate Park Dr,,Central Square,NY,13036,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-76.1849,43.309
-CUS-6469813e-87cf-470b-9cce-14347d5c4858,Meyda Lighting,55 Oriskany Blvd,,Yorkville,NY,13495,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-75.2756,43.1116
+Customer ID,Organization Name,Address Line 1,Address Line 2,City,State,ZIP Code,Address Confidence,Address Verification Note,Xlong,Ylat,Added
+CUS-001,Schatz Bearing,10 Fairview Ave,,Poughkeepsie,NY,12601,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-73.9117,41.7035,2026-10-18T16:00:00.000Z
+CUS-002,Z-Axis,1916 Route 96,,Phelps,NY,14532,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-77.0473,42.9582,2026-10-18T16:00:00.000Z
+CUS-003,StemCultures,150 New Scotland Ave,,Albany,NY,12208,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-73.7964,42.656,2026-10-18T16:00:00.000Z
+CUS-004,Ameritool Mfg,64 Corporate Park Dr,,Central Square,NY,13036,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-76.1849,43.309,2026-10-18T16:00:00.000Z
+CUS-005,Meyda Lighting,55 Oriskany Blvd,,Yorkville,NY,13495,Low,Imported from Companies-for-Map-Oct15.csv; ZIP-centroid coordinates are approximate and the address is unverified.,-75.2756,43.1116,2026-10-18T16:00:00.000Z

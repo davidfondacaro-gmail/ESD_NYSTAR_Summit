@@ -32,6 +32,7 @@ const customerHeaders = [
   "Address Verification Note",
   "Xlong",
   "Ylat",
+  "Added",
 ]
 const connectionHeaders = [
   "Connection ID",
@@ -109,6 +110,35 @@ async function appendCustomerAndConnections(
       readFile(customerCsvPath, "utf8"),
       readFile(connectionsCsvPath, "utf8"),
     ])
+    let highestCustomerNumber = 0
+    for (const csv of [customerCsv, connectionsCsv]) {
+      const parsed = Papa.parse<Record<string, string>>(csv, {
+        header: true,
+        skipEmptyLines: true,
+      })
+      if (parsed.errors.length > 0) {
+        throw new Error("Unable to parse customer IDs from CSV.")
+      }
+      for (const row of parsed.data) {
+        const match = /^CUS-(\d+)$/.exec(row["Customer ID"]?.trim() ?? "")
+        if (match) {
+          const customerNumber = Number(match[1])
+          if (!Number.isSafeInteger(customerNumber)) {
+            throw new Error("Customer ID exceeds the supported numeric range.")
+          }
+          highestCustomerNumber = Math.max(highestCustomerNumber, customerNumber)
+        }
+      }
+    }
+    const nextCustomerNumber = highestCustomerNumber + 1
+    if (!Number.isSafeInteger(nextCustomerNumber)) {
+      throw new Error("Customer ID exceeds the supported numeric range.")
+    }
+    const customerId = `CUS-${String(nextCustomerNumber).padStart(3, "0")}`
+    customerValues[0] = customerId
+    for (const connection of connectionValues) {
+      connection[1] = customerId
+    }
     const customerAppend = getAppendText(customerCsv, customerHeaders, [
       customerValues,
     ])
@@ -128,9 +158,10 @@ async function appendCustomerAndConnections(
       ])
       throw error
     }
+    return customerId
   })
 
-  writeQueue = operation.catch(() => {})
+  writeQueue = operation.then(() => {}, () => {})
   return operation
 }
 
@@ -228,14 +259,13 @@ export async function POST(request: Request) {
       )
     }
 
-    const customerId = `CUS-${randomUUID()}`
     const createdAt = new Date().toISOString()
     const connectionIds = requestedConnections.map(() => `CON-${randomUUID()}`)
     const connectionRows = requestedConnections.map((connection, index) => {
       const asset = assetsById.get(connection.assetId)!
       return [
         connectionIds[index],
-        customerId,
+        "",
         connection.assetId,
         organizationName,
         asset["Asset / Program Name"].trim(),
@@ -249,9 +279,9 @@ export async function POST(request: Request) {
       ]
     })
 
-    await appendCustomerAndConnections(
+    const customerId = await appendCustomerAndConnections(
       [
-        customerId,
+        "",
         organizationName,
         addressLine1,
         addressLine2,
@@ -262,6 +292,7 @@ export async function POST(request: Request) {
         "User-entered address; ZIP-centroid coordinates are approximate and the address is unverified.",
         String(coordinates.longitude),
         String(coordinates.latitude),
+        createdAt,
       ],
       connectionRows
     )
