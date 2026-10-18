@@ -450,7 +450,7 @@ export default function NetworkExplorerPanel({
             .map((program) => ({
               value: program.id,
               label: program.name,
-              group: programGrouping === "region" ? `- ${group.name}` : group.name,
+              group: `- ${group.name}`,
             }))
         )
   const partnerOptions =
