@@ -380,8 +380,6 @@ body {
   right: auto;
   bottom: auto;
   left: 50%;
-  width: 16px;
-  height: 16px;
   transform: translate(-50%, -50%);
 }
 

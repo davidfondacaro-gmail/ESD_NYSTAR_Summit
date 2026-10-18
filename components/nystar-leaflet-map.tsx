@@ -517,7 +517,7 @@ export default function NystarLeafletMap({
               location.customers.length > 0
             )}
           >
-            <Popup autoPan={false} className="network-positioned-popup">
+            <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
               <div className="network-popup">
                 {location.assets.length === 0 && (
                   <p className="network-popup__place">
