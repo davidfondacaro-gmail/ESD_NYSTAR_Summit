@@ -533,6 +533,25 @@ body {
   background: var(--network-popup-bg);
 }
 
+.leaflet-container .network-positioned-popup {
+  bottom: auto !important;
+  left: 0 !important;
+  margin: 0;
+}
+
+.network-positioned-popup .leaflet-popup-tip-container {
+  display: none;
+}
+
+.network-popup-arrow {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  transform: rotate(45deg);
+  background: var(--network-popup-bg);
+  pointer-events: none;
+}
+
 .leaflet-container .leaflet-popup-content {
   min-width: 180px;
   max-width: 280px;

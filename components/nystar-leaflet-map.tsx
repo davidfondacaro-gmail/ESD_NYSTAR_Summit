@@ -1,6 +1,7 @@
 "use client"
 
 import L from "leaflet"
+import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import {
@@ -269,6 +270,103 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
   return null
 }
 
+function PopupPlacement() {
+  const map = useMap()
+
+  useEffect(() => {
+    let activePopup: L.Popup | null = null
+    let revision = 0
+    const observer = new ResizeObserver(() => {
+      void positionPopup()
+    })
+
+    async function positionPopup() {
+      const popup = activePopup
+      const element = popup?.getElement()
+      const location = popup?.getLatLng()
+      if (!popup || !element || !location) return
+      const currentRevision = ++revision
+      const mapElement = map.getContainer()
+      const size = map.getSize()
+      const content = element.querySelector<HTMLElement>(".leaflet-popup-content")
+      const assets = element.querySelector<HTMLElement>(".network-popup__assets")
+      if (content) content.style.maxWidth = `${Math.max(40, size.x - 56)}px`
+      if (assets) assets.style.maxHeight = `${Math.max(40, Math.min(260, size.y - 80))}px`
+
+      let pointer = element.querySelector<HTMLElement>(".network-popup-arrow")
+      if (!pointer) {
+        pointer = document.createElement("span")
+        pointer.className = "network-popup-arrow"
+        pointer.setAttribute("aria-hidden", "true")
+        element.appendChild(pointer)
+      }
+      const reference = {
+        contextElement: mapElement,
+        getBoundingClientRect() {
+          const mapRect = mapElement.getBoundingClientRect()
+          const point = map.latLngToContainerPoint(location)
+          return new DOMRect(mapRect.left + point.x, mapRect.top + point.y, 0, 0)
+        },
+      }
+      const result = await computePosition(reference, element, {
+        placement: "top",
+        strategy: "absolute",
+        middleware: [
+          offset(20),
+          flip({ boundary: mapElement, padding: 12, fallbackPlacements: ["bottom", "left", "right"] }),
+          shift({ boundary: mapElement, padding: 12, crossAxis: true }),
+          arrow({ element: pointer, padding: 10 }),
+        ],
+      })
+      if (currentRevision !== revision || popup !== activePopup) return
+      L.DomUtil.setPosition(element, L.point(result.x, result.y))
+      const side = result.placement.split("-")[0]
+      const oppositeSide = { top: "bottom", bottom: "top", left: "right", right: "left" }[side]!
+      const arrowPosition = result.middlewareData.arrow
+      Object.assign(pointer.style, {
+        left: arrowPosition?.x == null ? "" : `${arrowPosition.x}px`,
+        top: arrowPosition?.y == null ? "" : `${arrowPosition.y}px`,
+        right: "",
+        bottom: "",
+        [oppositeSide]: "-4px",
+      })
+    }
+
+    function onOpen(event: L.PopupEvent) {
+      observer.disconnect()
+      activePopup = event.popup
+      const element = activePopup.getElement()
+      if (element) observer.observe(element)
+      void positionPopup()
+    }
+
+    function onClose(event: L.PopupEvent) {
+      if (event.popup !== activePopup) return
+      activePopup = null
+      revision += 1
+      observer.disconnect()
+    }
+
+    function onMapChange() {
+      void positionPopup()
+    }
+
+    map.on("popupopen", onOpen)
+    map.on("popupclose", onClose)
+    map.on("move zoomend resize", onMapChange)
+    return () => {
+      revision += 1
+      activePopup = null
+      observer.disconnect()
+      map.off("popupopen", onOpen)
+      map.off("popupclose", onClose)
+      map.off("move zoomend resize", onMapChange)
+    }
+  }, [map])
+
+  return null
+}
+
 function locationKey(location: NystarLocationGroup) {
   return `${location.latitude}-${location.longitude}`
 }
@@ -395,6 +493,7 @@ export default function NystarLeafletMap({
       attributionControl={false}
     >
       <InvalidateMapSize />
+      <PopupPlacement />
       <MapZoomControls enabled={showZoomControls} />
       <RecenterMapOnSidebarClose />
       <MepRegionsLayer showRegionLabels={showRegionLabels} />
@@ -418,7 +517,7 @@ export default function NystarLeafletMap({
               location.customers.length > 0
             )}
           >
-            <Popup autoPan={false}>
+            <Popup autoPan={false} className="network-positioned-popup">
               <div className="network-popup">
                 {location.assets.length === 0 && (
                   <p className="network-popup__place">
