@@ -312,6 +312,27 @@ body {
   background: transparent;
 }
 
+.nystar-cluster-marker {
+  border: 0;
+  background: transparent;
+}
+
+.nystar-cluster-marker__count {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border: 1px solid var(--brand-yellow);
+  border-radius: 50%;
+  background: var(--network-popup-bg);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 18%);
+  color: var(--network-ink);
+  font-size: 12px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+
 .nystar-marker__symbols {
   position: relative;
   display: grid;
@@ -344,20 +365,10 @@ body {
   transform: rotate(45deg);
 }
 
-.nystar-marker__stars--single .nystar-marker__star {
-  width: 18px;
-  height: 18px;
-}
-
 .nystar-marker__stars--with-partner {
   width: 24px;
   height: 24px;
   transform: translate(-3px, -3px);
-}
-
-.nystar-marker__stars--with-partner .nystar-marker__star {
-  width: 10px;
-  height: 10px;
 }
 
 .nystar-marker__partner-dot,

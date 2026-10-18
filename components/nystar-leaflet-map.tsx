@@ -4,6 +4,7 @@ import L from "leaflet"
 import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
 import { useEffect, useMemo, useRef, type RefObject } from "react"
 import { useTheme } from "next-themes"
+import MarkerClusterGroup from "react-leaflet-cluster"
 import {
   MapContainer,
   Marker,
@@ -18,6 +19,26 @@ import type { NystarLocationGroup } from "@/lib/nystar-locations"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
+const markerItemCounts = new WeakMap<L.Marker, number>()
+
+function numberedMarkerIcon(count: number) {
+  return L.divIcon({
+    className: "nystar-cluster-marker",
+    html: `<span class="nystar-cluster-marker__count" aria-label="${count} network items">${count}</span>`,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -16],
+  })
+}
+
+function clusterIcon(cluster: L.MarkerCluster) {
+  const count = cluster.getAllChildMarkers().reduce(
+    (total, marker) => total + (markerItemCounts.get(marker) ?? 1),
+    0
+  )
+  return numberedMarkerIcon(count)
+}
+
 const CATEGORY_COLORS: Record<string, string> = {
   "Centers for Advanced Technology": "#72a7c0",
   "Centers for Advanced Technology--NO LONGER OPERATING": "#c7b85d",
@@ -158,8 +179,8 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
     }
 
     map.dragging.disable()
-    map.setMinZoom(DEFAULT_MAP_ZOOM)
-    map.setMaxZoom(DEFAULT_MAP_ZOOM)
+    map.setMinZoom(5)
+    map.setMaxZoom(12)
     map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
   }, [enabled, map])
 
@@ -374,11 +395,13 @@ function locationKey(location: NystarLocationGroup) {
 function OpenSelectedMapSelectionPopup({
   locations,
   markerRefs,
+  clusterRef,
   selectedProgramId,
   selectedPartnerName,
 }: {
   locations: NystarLocationGroup[]
   markerRefs: RefObject<Map<string, L.Marker>>
+  clusterRef: RefObject<L.MarkerClusterGroup | null>
   selectedProgramId: string
   selectedPartnerName: string
 }) {
@@ -404,8 +427,31 @@ function OpenSelectedMapSelectionPopup({
       return
     }
 
-    markerRefs.current.get(locationKey(matchingLocation))?.openPopup()
-  }, [locations, map, markerRefs, selectedPartnerName, selectedProgramId])
+    const marker = markerRefs.current.get(locationKey(matchingLocation))
+    const group = clusterRef.current
+    if (!marker || !group) return
+
+    function revealMarker() {
+      if (!group!.hasLayer(marker!)) return
+      const parent = group!.getVisibleParent(marker!)
+      if (parent instanceof L.MarkerCluster) {
+        group!.once("spiderfied", openPopup)
+        parent.spiderfy()
+      } else {
+        openPopup()
+      }
+    }
+
+    function openPopup() {
+      marker!.openPopup()
+    }
+
+    const registration = window.setTimeout(revealMarker, 0)
+    return () => {
+      window.clearTimeout(registration)
+      group.off("spiderfied", openPopup)
+    }
+  }, [clusterRef, locations, map, markerRefs, selectedPartnerName, selectedProgramId])
 
   return null
 }
@@ -460,6 +506,7 @@ export default function NystarLeafletMap({
   showCityLabels: boolean
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
+  const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -500,19 +547,35 @@ export default function NystarLeafletMap({
       <OpenSelectedMapSelectionPopup
         locations={locations}
         markerRefs={markerRefs}
+        clusterRef={clusterRef}
         selectedProgramId={selectedProgramId}
         selectedPartnerName={selectedPartnerName}
       />
+      <MarkerClusterGroup
+        ref={clusterRef}
+        maxClusterRadius={40}
+        iconCreateFunction={clusterIcon}
+        showCoverageOnHover={false}
+        zoomToBoundsOnClick={false}
+        spiderfyOnEveryZoom
+        animate={false}
+        spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
+      >
       {locations.map((location) => (
           <Marker
             key={`${location.latitude}-${location.longitude}`}
             ref={(marker) => {
               const key = locationKey(location)
-              if (marker) markerRefs.current.set(key, marker)
+              if (marker) {
+                markerItemCounts.set(marker, location.assets.length + location.customers.length)
+                markerRefs.current.set(key, marker)
+              }
               else markerRefs.current.delete(key)
             }}
             position={markerPositions.get(locationKey(location))!}
-            icon={markerIcon(
+            icon={location.assets.length + location.customers.length > 1
+              ? numberedMarkerIcon(location.assets.length + location.customers.length)
+              : markerIcon(
               location.assets.map((asset) => asset.category),
               location.customers.length > 0
             )}
@@ -604,6 +667,7 @@ export default function NystarLeafletMap({
             </Popup>
           </Marker>
       ))}
+      </MarkerClusterGroup>
       <Pane
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
