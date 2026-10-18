@@ -40,6 +40,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar"
 import { Toggle } from "@/components/ui/toggle"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -526,12 +527,16 @@ export default function NetworkExplorerPanel({
                 >
                   Program Type
                 </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="region"
-                >
-                  NYSTAR Region
-                </ToggleGroupItem>
+                <Tooltip>
+                  <ToggleGroupItem
+                    className="drawer-review-control"
+                    value="region"
+                    render={<TooltipTrigger />}
+                  >
+                    ESD Region
+                  </ToggleGroupItem>
+                  <TooltipContent>Empire State Development regions</TooltipContent>
+                </Tooltip>
               </ToggleGroup>
               <p className="shrink-0 text-right text-xs text-muted-foreground">
                 {programs.length} programs
@@ -589,12 +594,16 @@ export default function NetworkExplorerPanel({
                 >
                   A to Z
                 </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="region"
-                >
-                  NYSTAR Region
-                </ToggleGroupItem>
+                <Tooltip>
+                  <ToggleGroupItem
+                    className="drawer-review-control"
+                    value="region"
+                    render={<TooltipTrigger />}
+                  >
+                    ESD Region
+                  </ToggleGroupItem>
+                  <TooltipContent>Empire State Development regions</TooltipContent>
+                </Tooltip>
               </ToggleGroup>
               <p className="shrink-0 text-right text-xs text-muted-foreground">
                 {innovationPartners.length} partners

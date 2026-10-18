@@ -32,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 
 type GroupingMode = "type" | "region"
@@ -442,12 +443,16 @@ export default function AddConnectionsDrawer({
                     >
                       Program Type
                     </ToggleGroupItem>
-                    <ToggleGroupItem
-                      className="drawer-review-control"
-                      value="region"
-                    >
-                      NYSTAR Region
-                    </ToggleGroupItem>
+                    <Tooltip>
+                      <ToggleGroupItem
+                        className="drawer-review-control"
+                        value="region"
+                        render={<TooltipTrigger />}
+                      >
+                        ESD Region
+                      </ToggleGroupItem>
+                      <TooltipContent>Empire State Development regions</TooltipContent>
+                    </Tooltip>
                   </ToggleGroup>
                   <p className="shrink-0 text-right text-sm text-muted-foreground">
                     {selectedPrograms.size} selected
