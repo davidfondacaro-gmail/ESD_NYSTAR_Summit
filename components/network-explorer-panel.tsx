@@ -307,10 +307,12 @@ function CollapsedExplorerNavigation({
   openSection,
   onSelectSection,
   showTour,
+  showPartners,
 }: {
   openSection: ExplorerSectionId | null
   onSelectSection: (section: ExplorerSectionId) => void
   showTour: boolean
+  showPartners: boolean
 }) {
   const { setOpen } = useSidebar()
 
@@ -340,7 +342,7 @@ function CollapsedExplorerNavigation({
   return (
     <SidebarGroup className="hidden p-0 group-data-[collapsible=icon]:block">
       <SidebarMenu className="gap-1">
-        {items.filter(({ id }) => id !== "tour" || showTour).map(({ id, label, icon: Icon }) => (
+        {items.filter(({ id }) => (id !== "tour" || showTour) && (id !== "partner" || showPartners)).map(({ id, label, icon: Icon }) => (
           <SidebarMenuItem key={id}>
             <SidebarMenuButton
               aria-label={label}
@@ -428,6 +430,7 @@ export default function NetworkExplorerPanel({
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
   const [showTour, setShowTour] = useState(true)
+  const [showPartners, setShowPartners] = useState(true)
   const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
     "alpha"
   )
@@ -484,6 +487,7 @@ export default function NetworkExplorerPanel({
         <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
           <CollapsedExplorerNavigation
             showTour={showTour}
+            showPartners={showPartners}
             openSection={openSection}
             onSelectSection={setOpenSection}
           />
@@ -565,68 +569,70 @@ export default function NetworkExplorerPanel({
             )}
           </ExplorerSection>
 
-          <ExplorerSection
-            headingId="find-partner-heading"
-            icon={<Circle aria-hidden="true" className="shrink-0" />}
-            title="Find an Innovation Partner"
-            open={openSection === "partner"}
-            onOpenChange={(open) =>
-              setOpenSection(open ? "partner" : null)
-            }
-          >
-            <Alert className="border-sidebar-border bg-transparent">
-              <Info aria-hidden="true" />
-              <AlertDescription>
-                Select an innovation partner to view its connections on the map.
-              </AlertDescription>
-            </Alert>
-            <div className="flex items-center justify-between gap-2">
-              <ToggleGroup
-                aria-label="Group innovation partners by"
-                value={[partnerGrouping]}
-                onValueChange={(value) => {
-                  const nextGrouping = value[0]
-                  if (nextGrouping === "alpha" || nextGrouping === "region") {
-                    setPartnerGrouping(nextGrouping)
-                  }
-                }}
-                variant="outline"
-                size="sm"
-                spacing={0}
-              >
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="alpha"
+          {showPartners && (
+            <ExplorerSection
+              headingId="find-partner-heading"
+              icon={<Circle aria-hidden="true" className="shrink-0" />}
+              title="Find an Innovation Partner"
+              open={openSection === "partner"}
+              onOpenChange={(open) =>
+                setOpenSection(open ? "partner" : null)
+              }
+            >
+              <Alert className="border-sidebar-border bg-transparent">
+                <Info aria-hidden="true" />
+                <AlertDescription>
+                  Select an innovation partner to view its connections on the map.
+                </AlertDescription>
+              </Alert>
+              <div className="flex items-center justify-between gap-2">
+                <ToggleGroup
+                  aria-label="Group innovation partners by"
+                  value={[partnerGrouping]}
+                  onValueChange={(value) => {
+                    const nextGrouping = value[0]
+                    if (nextGrouping === "alpha" || nextGrouping === "region") {
+                      setPartnerGrouping(nextGrouping)
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  spacing={0}
                 >
-                  A to Z
-                </ToggleGroupItem>
-                <Tooltip>
                   <ToggleGroupItem
                     className="drawer-review-control"
-                    value="region"
-                    render={<TooltipTrigger />}
+                    value="alpha"
                   >
-                    ESD Region
+                    A to Z
                   </ToggleGroupItem>
-                  <TooltipContent>Empire State Development regions</TooltipContent>
-                </Tooltip>
-              </ToggleGroup>
-              <p className="shrink-0 text-right text-xs text-muted-foreground">
-                {innovationPartners.length} partners
-              </p>
-            </div>
-            <ExplorerListbox
-              labelledBy="find-partner-heading"
-              options={partnerOptions}
-              value={selectedPartnerName}
-              visibleRows={7}
-              onValueChange={(value) => {
-                setSelectedPartnerName(value)
-                setSelectedProgramId("")
-                setSelectionRevision((revision) => revision + 1)
-              }}
-            />
-          </ExplorerSection>
+                  <Tooltip>
+                    <ToggleGroupItem
+                      className="drawer-review-control"
+                      value="region"
+                      render={<TooltipTrigger />}
+                    >
+                      ESD Region
+                    </ToggleGroupItem>
+                    <TooltipContent>Empire State Development regions</TooltipContent>
+                  </Tooltip>
+                </ToggleGroup>
+                <p className="shrink-0 text-right text-xs text-muted-foreground">
+                  {innovationPartners.length} partners
+                </p>
+              </div>
+              <ExplorerListbox
+                labelledBy="find-partner-heading"
+                options={partnerOptions}
+                value={selectedPartnerName}
+                visibleRows={7}
+                onValueChange={(value) => {
+                  setSelectedPartnerName(value)
+                  setSelectedProgramId("")
+                  setSelectionRevision((revision) => revision + 1)
+                }}
+              />
+            </ExplorerSection>
+          )}
 
           <ExplorerSection
             headingId="add-connections-heading"
@@ -736,6 +742,28 @@ export default function NetworkExplorerPanel({
             >
               <FileText aria-hidden="true" />
             </Toggle>
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle innovation partners"
+                pressed={showPartners}
+                onPressedChange={(visible) => {
+                  setShowPartners(visible)
+                  if (!visible) {
+                    setOpenSection((section) => section === "partner" ? null : section)
+                    if (selectedPartnerName) {
+                      setSelectedPartnerName("")
+                      setSelectionRevision((revision) => revision + 1)
+                    }
+                  }
+                }}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <Circle aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle innovation partners</TooltipContent>
+            </Tooltip>
             <Tooltip>
               <Toggle
                 aria-label="Toggle tour"
