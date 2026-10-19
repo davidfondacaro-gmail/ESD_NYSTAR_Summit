@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic"
 
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type { RecentConnection } from "@/lib/recent-connection"
 
 const LeafletMap = dynamic(() => import("./nystar-leaflet-map"), {
   ssr: false,
@@ -18,6 +19,7 @@ export default function NystarNetworkMap({
   showMapLegend,
   showRegionLabels,
   showCityLabels,
+  recentConnections,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
@@ -27,6 +29,7 @@ export default function NystarNetworkMap({
   showMapLegend: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
+  recentConnections: RecentConnection[]
 }) {
   return (
     <LeafletMap
@@ -38,6 +41,7 @@ export default function NystarNetworkMap({
       showMapLegend={showMapLegend}
       showRegionLabels={showRegionLabels}
       showCityLabels={showCityLabels}
+      recentConnections={recentConnections}
     />
   )
 }

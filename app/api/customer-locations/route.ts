@@ -9,6 +9,7 @@ import { revalidatePath } from "next/cache"
 import zipcodes from "zipcodes"
 
 import { regionForPoint } from "@/lib/nystar-regions"
+import { normalizeOrganizationName } from "@/lib/organization-name"
 
 export const runtime = "nodejs"
 
@@ -62,6 +63,7 @@ type NystarCsvRow = {
 type ConnectionType = "Existing" | "Desired"
 
 type CustomerRequest = {
+  existingPartnerName?: unknown
   organizationName?: unknown
   addressLine1?: unknown
   addressLine2?: unknown
@@ -76,6 +78,8 @@ type CustomerRequest = {
 }
 
 let writeQueue: Promise<void> = Promise.resolve()
+
+class DuplicateOrganizationError extends Error {}
 
 function text(value: unknown) {
   return typeof value === "string" ? value.trim() : ""
@@ -105,6 +109,47 @@ function getAppendText(
   return `${separator}${Papa.unparse(rows, { header: false, newline })}${newline}`
 }
 
+async function appendConnectionsForExistingCustomer(
+  organizationName: string,
+  connectionValues: string[][]
+) {
+  const operation = writeQueue.then(async () => {
+    const [customerCsv, connectionsCsv] = await Promise.all([
+      readFile(customerCsvPath, "utf8"),
+      readFile(connectionsCsvPath, "utf8"),
+    ])
+    const parsed = Papa.parse<Record<string, string>>(customerCsv, {
+      header: true,
+      skipEmptyLines: true,
+    })
+    if (parsed.errors.length > 0) {
+      throw new Error("Unable to parse customer IDs from CSV.")
+    }
+    const customer = parsed.data.find(
+      (row) =>
+        normalizeOrganizationName(row["Organization Name"] ?? "") ===
+        normalizeOrganizationName(organizationName)
+    )
+    const customerId = customer?.["Customer ID"]?.trim()
+    if (!customerId) return null
+    for (const connection of connectionValues) {
+      connection[1] = customerId
+    }
+    await appendFile(
+      connectionsCsvPath,
+      getAppendText(connectionsCsv, connectionHeaders, connectionValues),
+      "utf8"
+    )
+    return customerId
+  })
+
+  writeQueue = operation.then(
+    () => {},
+    () => {}
+  )
+  return operation
+}
+
 async function appendCustomerAndConnections(
   customerValues: string[],
   connectionValues: string[][]
@@ -114,6 +159,19 @@ async function appendCustomerAndConnections(
       readFile(customerCsvPath, "utf8"),
       readFile(connectionsCsvPath, "utf8"),
     ])
+    const newName = normalizeOrganizationName(customerValues[2])
+    const customerRows = Papa.parse<Record<string, string>>(customerCsv, {
+      header: true,
+      skipEmptyLines: true,
+    }).data
+    if (
+      customerRows.some(
+        (row) =>
+          normalizeOrganizationName(row["Organization Name"] ?? "") === newName
+      )
+    ) {
+      throw new DuplicateOrganizationError()
+    }
     let highestCustomerNumber = 0
     for (const csv of [customerCsv, connectionsCsv]) {
       const parsed = Papa.parse<Record<string, string>>(csv, {
@@ -130,7 +188,10 @@ async function appendCustomerAndConnections(
           if (!Number.isSafeInteger(customerNumber)) {
             throw new Error("Customer ID exceeds the supported numeric range.")
           }
-          highestCustomerNumber = Math.max(highestCustomerNumber, customerNumber)
+          highestCustomerNumber = Math.max(
+            highestCustomerNumber,
+            customerNumber
+          )
         }
       }
     }
@@ -165,7 +226,10 @@ async function appendCustomerAndConnections(
     return customerId
   })
 
-  writeQueue = operation.then(() => {}, () => {})
+  writeQueue = operation.then(
+    () => {},
+    () => {}
+  )
   return operation
 }
 
@@ -182,28 +246,30 @@ export async function POST(request: Request) {
     return errorResponse("Invalid JSON request body.", 400)
   }
 
-  const organizationName = text(body.organizationName)
+  const existingPartnerName = text(body.existingPartnerName)
+  const organizationName = existingPartnerName || text(body.organizationName)
   const addressLine1 = text(body.addressLine1)
   const addressLine2 = text(body.addressLine2)
   const city = text(body.city)
   const postalCode = text(body.postalCode)
 
-  if (!organizationName || !addressLine1 || !city || !postalCode) {
-    return errorResponse(
-      "Organization, street address, city, and ZIP code are required.",
-      400
-    )
-  }
-  if (body.state !== "NY") {
-    return errorResponse("Only New York addresses are allowed.", 400)
-  }
-  if (!/^\d{5}$/.test(postalCode)) {
-    return errorResponse("Enter a valid five-digit ZIP code.", 400)
-  }
-
-  const coordinates = zipcodes.lookup(postalCode)
-  if (!coordinates || coordinates.state !== "NY") {
-    return errorResponse("Enter a New York ZIP code.", 400)
+  const coordinates = existingPartnerName ? null : zipcodes.lookup(postalCode)
+  if (!existingPartnerName) {
+    if (!organizationName || !addressLine1 || !city || !postalCode) {
+      return errorResponse(
+        "Organization, street address, city, and ZIP code are required.",
+        400
+      )
+    }
+    if (body.state !== "NY") {
+      return errorResponse("Only New York addresses are allowed.", 400)
+    }
+    if (!/^\d{5}$/.test(postalCode)) {
+      return errorResponse("Enter a valid five-digit ZIP code.", 400)
+    }
+    if (!coordinates || coordinates.state !== "NY") {
+      return errorResponse("Enter a New York ZIP code.", 400)
+    }
   }
 
   if (!Array.isArray(body.connections) || body.connections.length === 0) {
@@ -245,11 +311,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    const [nystarCsv, regionsText] = await Promise.all([
-      readFile(nystarCsvPath, "utf8"),
-      readFile(regionsPath, "utf8"),
-    ])
-    const region = regionForPoint(coordinates, JSON.parse(regionsText))
+    const nystarCsv = await readFile(nystarCsvPath, "utf8")
     const { data: nystarRows } = Papa.parse<NystarCsvRow>(nystarCsv, {
       header: true,
       skipEmptyLines: true,
@@ -287,6 +349,26 @@ export async function POST(request: Request) {
       ]
     })
 
+    if (existingPartnerName) {
+      const customerId = await appendConnectionsForExistingCustomer(
+        existingPartnerName,
+        connectionRows
+      )
+      if (!customerId) {
+        return errorResponse("The selected partner could not be found.", 404)
+      }
+      revalidatePath("/")
+      return Response.json(
+        { saved: true, customerId, connectionIds },
+        { status: 201 }
+      )
+    }
+
+    if (!coordinates) {
+      return errorResponse("Enter a New York ZIP code.", 400)
+    }
+    const regionsText = await readFile(regionsPath, "utf8")
+    const region = regionForPoint(coordinates, JSON.parse(regionsText))
     const customerId = await appendCustomerAndConnections(
       [
         "",
@@ -312,6 +394,12 @@ export async function POST(request: Request) {
       { status: 201 }
     )
   } catch (error) {
+    if (error instanceof DuplicateOrganizationError) {
+      return errorResponse(
+        "An organization with this name already exists.",
+        409
+      )
+    }
     console.error("Failed to save customer location", error)
     return errorResponse("Unable to save the customer location.", 500)
   }

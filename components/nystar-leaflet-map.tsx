@@ -15,7 +15,9 @@ import {
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
+import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type { RecentConnection } from "@/lib/recent-connection"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
@@ -42,19 +44,6 @@ function clusterIcon(cluster: L.MarkerCluster) {
     0
   )
   return numberedMarkerIcon(count)
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "Centers for Advanced Technology": "#72a7c0",
-  "Centers for Advanced Technology--NO LONGER OPERATING": "#c7b85d",
-  "Centers of Excellence": "#c58b32",
-  "Innovation Hot Spot": "#4e927a",
-  "New York Manufacturing Extension Partnership": "#4786a4",
-  "New York State Accelerators and Competition": "#ba7050",
-  "New York State Accelerators and Competitions": "#ad839a",
-  "NY Fashion Innovation Center": "#a97fb2",
-  "NY Global Entrepreneurs Program": "#4f9697",
-  "NYS-Certified Business Incubator": "#a4934f",
 }
 
 const REGION_LABEL_OFFSETS: Record<string, [number, number]> = {
@@ -455,6 +444,93 @@ function OpenSelectedMapSelectionPopup({
   return null
 }
 
+const CONNECTION_LINE_PANE = "connection-lines"
+const CONNECTION_LINE_DURATION_MS = 1000
+
+function RecentConnectionLines({
+  connections,
+  locations,
+}: {
+  connections: RecentConnection[]
+  locations: NystarLocationGroup[]
+}) {
+  const map = useMap()
+  const lines = useMemo(() => {
+    const assetPositions = new Map<string, L.LatLng>()
+    const partnerPositions = new Map<string, L.LatLng>()
+    for (const location of locations) {
+      const position = L.latLng(location.latitude, location.longitude)
+      for (const asset of location.assets) assetPositions.set(asset.id, position)
+      for (const customer of location.customers) partnerPositions.set(customer.id, position)
+    }
+    return connections.flatMap((connection) => {
+      const from = assetPositions.get(connection.fromAssetId)
+      const to = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
+      if (!from || !to) return []
+      return [{
+        key: `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}`,
+        from,
+        to,
+        desired: connection.connectionType === "Desired",
+      }]
+    })
+  }, [connections, locations])
+  const linesRef = useRef(lines)
+  const linesKey = lines.map((line) => line.key).join("|")
+
+  useEffect(() => {
+    linesRef.current = lines
+  }, [lines])
+
+  useEffect(() => {
+    const currentLines = linesRef.current
+    if (currentLines.length === 0) return
+    if (!map.getPane(CONNECTION_LINE_PANE)) {
+      const pane = map.createPane(CONNECTION_LINE_PANE)
+      pane.style.zIndex = "450"
+      pane.style.pointerEvents = "none"
+    }
+    const polylines = currentLines.map((line) =>
+      L.polyline([line.from, line.from], {
+        pane: CONNECTION_LINE_PANE,
+        interactive: false,
+        className: line.desired
+          ? "network-connection-line network-connection-line--desired"
+          : "network-connection-line",
+      }).addTo(map)
+    )
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const start = performance.now()
+    let frame = 0
+
+    function draw(now: number) {
+      const progress = reduceMotion
+        ? 1
+        : Math.min(1, (now - start) / CONNECTION_LINE_DURATION_MS)
+      const eased = 1 - (1 - progress) ** 3
+      polylines.forEach((polyline, index) => {
+        const { from, to } = currentLines[index]
+        polyline.setLatLngs([
+          from,
+          L.latLng(
+            from.lat + (to.lat - from.lat) * eased,
+            from.lng + (to.lng - from.lng) * eased
+          ),
+        ])
+      })
+      if (progress < 1) frame = requestAnimationFrame(draw)
+    }
+
+    frame = requestAnimationFrame(draw)
+    return () => {
+      cancelAnimationFrame(frame)
+      polylines.forEach((polyline) => polyline.remove())
+    }
+  }, [map, linesKey])
+
+  return null
+}
+
 function markerIcon(categories: string[], hasInnovationPartner: boolean) {
   const markerCategories = [...new Set(categories)]
   const stars = markerCategories
@@ -496,6 +572,7 @@ export default function NystarLeafletMap({
   showMapLegend,
   showRegionLabels,
   showCityLabels,
+  recentConnections,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
@@ -505,6 +582,7 @@ export default function NystarLeafletMap({
   showMapLegend: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
+  recentConnections: RecentConnection[]
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
@@ -697,6 +775,10 @@ export default function NystarLeafletMap({
         )
       })}
       </MarkerClusterGroup>
+      <RecentConnectionLines
+        connections={recentConnections}
+        locations={locations}
+      />
       <Pane
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
