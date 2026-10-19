@@ -2,7 +2,7 @@
 
 import L from "leaflet"
 import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
@@ -412,19 +412,21 @@ function OpenSelectedMapSelectionPopup({
 }) {
   const map = useMap()
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     map.closePopup()
     if (!popupLocation) {
       return
     }
 
-    const marker = markerRefs.current.get(locationKey(popupLocation))
-    const group = clusterRef.current
-    if (!marker || !group) return
+    let marker: L.Marker | undefined
+    let group: L.MarkerClusterGroup | null = null
     let cancelled = false
 
     function revealMarker() {
-      if (!group!.hasLayer(marker!)) return
+      if (cancelled) return
+      marker = markerRefs.current.get(locationKey(popupLocation!))
+      group = clusterRef.current
+      if (!marker || !group || !group.hasLayer(marker)) return
       if (mapPopupRequest?.selectionRevision === selectionRevision) {
         openPopup()
         return
@@ -446,7 +448,7 @@ function OpenSelectedMapSelectionPopup({
     return () => {
       cancelled = true
       window.clearTimeout(registration)
-      group.off("spiderfied", openPopup)
+      group?.off("spiderfied", openPopup)
     }
   }, [clusterRef, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
 
