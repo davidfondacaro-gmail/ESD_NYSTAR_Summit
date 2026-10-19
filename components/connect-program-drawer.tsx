@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Info, X } from "lucide-react"
+import { Info, Link, X } from "lucide-react"
 
 import InnovationPartnerPicker, {
   type PartnerRegionGroup,
@@ -295,8 +295,9 @@ export default function ConnectProgramDrawer({
   return (
     <Drawer swipeDirection="right" open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger
-        render={<Button type="button" variant="brand" size="sm" />}
+        render={<Button type="button" variant="brand" size="lg" />}
       >
+        <Link data-icon="inline-start" />
         Connect With This Program
       </DrawerTrigger>
       <DrawerContent style={{ width: SIDEBAR_WIDTH }}>
