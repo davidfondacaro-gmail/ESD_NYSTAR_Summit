@@ -2,7 +2,7 @@
 
 import L from "leaflet"
 import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
-import { useEffect, useMemo, useRef, type RefObject } from "react"
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
@@ -15,11 +15,18 @@ import {
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
+import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type { RecentConnection } from "@/lib/recent-connection"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
 const markerItemCounts = new WeakMap<L.Marker, number>()
+
+type MapPopupRequest = {
+  locationKey: string
+  selectionRevision: number
+}
 
 function numberedMarkerIcon(count: number) {
   return L.divIcon({
@@ -37,19 +44,6 @@ function clusterIcon(cluster: L.MarkerCluster) {
     0
   )
   return numberedMarkerIcon(count)
-}
-
-const CATEGORY_COLORS: Record<string, string> = {
-  "Centers for Advanced Technology": "#72a7c0",
-  "Centers for Advanced Technology--NO LONGER OPERATING": "#c7b85d",
-  "Centers of Excellence": "#c58b32",
-  "Innovation Hot Spot": "#4e927a",
-  "New York Manufacturing Extension Partnership": "#4786a4",
-  "New York State Accelerators and Competition": "#ba7050",
-  "New York State Accelerators and Competitions": "#ad839a",
-  "NY Fashion Innovation Center": "#a97fb2",
-  "NY Global Entrepreneurs Program": "#4f9697",
-  "NYS-Certified Business Incubator": "#a4934f",
 }
 
 const REGION_LABEL_OFFSETS: Record<string, [number, number]> = {
@@ -393,46 +387,39 @@ function locationKey(location: NystarLocationGroup) {
 }
 
 function OpenSelectedMapSelectionPopup({
-  locations,
+  popupLocation,
   markerRefs,
   clusterRef,
-  selectedProgramId,
-  selectedPartnerName,
+  selectionRevision,
+  mapPopupRequest,
 }: {
-  locations: NystarLocationGroup[]
+  popupLocation: NystarLocationGroup | undefined
   markerRefs: RefObject<Map<string, L.Marker>>
   clusterRef: RefObject<L.MarkerClusterGroup | null>
-  selectedProgramId: string
-  selectedPartnerName: string
+  selectionRevision: number
+  mapPopupRequest: MapPopupRequest | null
 }) {
   const map = useMap()
 
-  useEffect(() => {
-    if (!selectedProgramId && !selectedPartnerName) {
-      return
-    }
-
+  useLayoutEffect(() => {
     map.closePopup()
-    const matchingLocation = locations.find((location) =>
-      selectedProgramId
-        ? location.assets.some((asset) => asset.id === selectedProgramId)
-        : location.assets.some(
-            (asset) => asset.hostOrganization === selectedPartnerName
-          ) ||
-          location.customers.some(
-            (customer) => customer.name === selectedPartnerName
-          )
-    )
-    if (!matchingLocation) {
+    if (!popupLocation) {
       return
     }
 
-    const marker = markerRefs.current.get(locationKey(matchingLocation))
-    const group = clusterRef.current
-    if (!marker || !group) return
+    let marker: L.Marker | undefined
+    let group: L.MarkerClusterGroup | null = null
+    let cancelled = false
 
     function revealMarker() {
-      if (!group!.hasLayer(marker!)) return
+      if (cancelled) return
+      marker = markerRefs.current.get(locationKey(popupLocation!))
+      group = clusterRef.current
+      if (!marker || !group || !group.hasLayer(marker)) return
+      if (mapPopupRequest?.selectionRevision === selectionRevision) {
+        openPopup()
+        return
+      }
       const parent = group!.getVisibleParent(marker!)
       if (parent instanceof L.MarkerCluster) {
         group!.once("spiderfied", openPopup)
@@ -443,15 +430,103 @@ function OpenSelectedMapSelectionPopup({
     }
 
     function openPopup() {
-      marker!.openPopup()
+      if (!cancelled) marker!.openPopup()
     }
 
     const registration = window.setTimeout(revealMarker, 0)
     return () => {
+      cancelled = true
       window.clearTimeout(registration)
-      group.off("spiderfied", openPopup)
+      group?.off("spiderfied", openPopup)
     }
-  }, [clusterRef, locations, map, markerRefs, selectedPartnerName, selectedProgramId])
+  }, [clusterRef, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
+
+  return null
+}
+
+const CONNECTION_LINE_PANE = "connection-lines"
+const CONNECTION_LINE_DURATION_MS = 1000
+
+function RecentConnectionLines({
+  connections,
+  locations,
+}: {
+  connections: RecentConnection[]
+  locations: NystarLocationGroup[]
+}) {
+  const map = useMap()
+  const lines = useMemo(() => {
+    const assetPositions = new Map<string, L.LatLng>()
+    const partnerPositions = new Map<string, L.LatLng>()
+    for (const location of locations) {
+      const position = L.latLng(location.latitude, location.longitude)
+      for (const asset of location.assets) assetPositions.set(asset.id, position)
+      for (const customer of location.customers) partnerPositions.set(customer.id, position)
+    }
+    return connections.flatMap((connection) => {
+      const from = assetPositions.get(connection.fromAssetId)
+      const to = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
+      if (!from || !to) return []
+      return [{
+        key: `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}`,
+        from,
+        to,
+        desired: connection.connectionType === "Desired",
+      }]
+    })
+  }, [connections, locations])
+  const linesRef = useRef(lines)
+  const linesKey = lines.map((line) => line.key).join("|")
+
+  useEffect(() => {
+    linesRef.current = lines
+  }, [lines])
+
+  useEffect(() => {
+    const currentLines = linesRef.current
+    if (currentLines.length === 0) return
+    if (!map.getPane(CONNECTION_LINE_PANE)) {
+      const pane = map.createPane(CONNECTION_LINE_PANE)
+      pane.style.zIndex = "450"
+      pane.style.pointerEvents = "none"
+    }
+    const polylines = currentLines.map((line) =>
+      L.polyline([line.from, line.from], {
+        pane: CONNECTION_LINE_PANE,
+        interactive: false,
+        className: line.desired
+          ? "network-connection-line network-connection-line--desired"
+          : "network-connection-line",
+      }).addTo(map)
+    )
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    const start = performance.now()
+    let frame = 0
+
+    function draw(now: number) {
+      const progress = reduceMotion
+        ? 1
+        : Math.min(1, (now - start) / CONNECTION_LINE_DURATION_MS)
+      const eased = 1 - (1 - progress) ** 3
+      polylines.forEach((polyline, index) => {
+        const { from, to } = currentLines[index]
+        polyline.setLatLngs([
+          from,
+          L.latLng(
+            from.lat + (to.lat - from.lat) * eased,
+            from.lng + (to.lng - from.lng) * eased
+          ),
+        ])
+      })
+      if (progress < 1) frame = requestAnimationFrame(draw)
+    }
+
+    frame = requestAnimationFrame(draw)
+    return () => {
+      cancelAnimationFrame(frame)
+      polylines.forEach((polyline) => polyline.remove())
+    }
+  }, [map, linesKey])
 
   return null
 }
@@ -492,21 +567,38 @@ export default function NystarLeafletMap({
   locations,
   selectedProgramId,
   selectedPartnerName,
+  selectionRevision,
   showZoomControls,
   showMapLegend,
   showRegionLabels,
   showCityLabels,
+  recentConnections,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
+  selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
+  recentConnections: RecentConnection[]
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
+  const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
+  const showFullLocation = mapPopupRequest?.selectionRevision === selectionRevision
+  const sidebarLocation = locations.find((location) =>
+    selectedProgramId
+      ? location.assets.some((asset) => asset.id === selectedProgramId)
+      : location.customers.some((customer) => customer.name === selectedPartnerName)
+  )
+  const selectedCustomerId = sidebarLocation?.customers.find(
+    (customer) => customer.name === selectedPartnerName
+  )?.id
+  const popupLocation = showFullLocation
+    ? locations.find((location) => locationKey(location) === mapPopupRequest.locationKey)
+    : sidebarLocation
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -545,11 +637,11 @@ export default function NystarLeafletMap({
       <RecenterMapOnSidebarClose />
       <MepRegionsLayer showRegionLabels={showRegionLabels} />
       <OpenSelectedMapSelectionPopup
-        locations={locations}
+        popupLocation={popupLocation}
         markerRefs={markerRefs}
         clusterRef={clusterRef}
-        selectedProgramId={selectedProgramId}
-        selectedPartnerName={selectedPartnerName}
+        selectionRevision={selectionRevision}
+        mapPopupRequest={mapPopupRequest}
       />
       <MarkerClusterGroup
         ref={clusterRef}
@@ -561,9 +653,23 @@ export default function NystarLeafletMap({
         animate={false}
         spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
       >
-      {locations.map((location) => (
+      {locations.map((location) => {
+        const selectedOnly = !showFullLocation && location === sidebarLocation
+        const assets = selectedOnly
+          ? location.assets.filter((asset) => asset.id === selectedProgramId)
+          : location.assets
+        const customers = selectedOnly
+          ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
+          : location.customers
+        return (
           <Marker
             key={`${location.latitude}-${location.longitude}`}
+            eventHandlers={{
+              click: () => setMapPopupRequest({
+                locationKey: locationKey(location),
+                selectionRevision,
+              }),
+            }}
             ref={(marker) => {
               const key = locationKey(location)
               if (marker) {
@@ -583,7 +689,7 @@ export default function NystarLeafletMap({
             <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
               <div className="network-popup">
                 <ul className="network-popup__assets">
-                  {location.assets.map((asset) => (
+                  {assets.map((asset) => (
                     <li
                       className="network-popup__asset"
                       key={`${asset.name}-${asset.hostOrganization}`}
@@ -623,7 +729,7 @@ export default function NystarLeafletMap({
                       </span>
                     </li>
                   ))}
-                  {location.customers.map((customer) => (
+                  {customers.map((customer) => (
                     <li
                       className="network-popup__customer"
                       key={customer.id}
@@ -666,8 +772,13 @@ export default function NystarLeafletMap({
               </div>
             </Popup>
           </Marker>
-      ))}
+        )
+      })}
       </MarkerClusterGroup>
+      <RecentConnectionLines
+        connections={recentConnections}
+        locations={locations}
+      />
       <Pane
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}

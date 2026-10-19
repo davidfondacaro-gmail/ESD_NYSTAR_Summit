@@ -1,1 +1,6 @@
 Connection ID,Customer ID,NYSTAR Asset ID,Organization Name,NYSTAR Program Name,NYSTAR Host Organization,Connection Type,Created At,Followup Name,Followup Email,Followup Phone,Comments
+CON-56b380d8-c817-4eab-8410-eab02cff2fbe,CUS-006,NYSTAR-001,asdf,Center for Advanced Ceramic Technology (CACT),Alfred University,Desired,2026-10-19T21:16:17.579Z,adsf,,,sdf
+CON-31daa8a7-ecfb-4873-863d-5d970f6daf86,CUS-006,NYSTAR-002,asdf,Center for Advanced Materials Processing (CAMP),Clarkson University,Existing,2026-10-19T21:16:17.579Z,,,,
+CON-23c28d56-ca35-4cd3-9768-9fd0d862a363,CUS-007,NYSTAR-013,Fondo,Additive Manufacturing and Multifunctional Printing (AMPrint) Center,Rochester Institute of Technology,Desired,2026-10-19T22:59:38.274Z,fondo,david.fondacaro@gmail.com,5188511551,comment here - should end up in comment field
+CON-4bda4004-61f9-4861-aa1e-8adc5cfaf93a,CUS-008,NYSTAR-062,Allison,Accelerate Long Island,Accelerate Long Island,Desired,2026-10-19T23:04:52.185Z,Al,alfondacaro@gmail.com,(518) 210-4365,comments for Al partner
+CON-c2cf180b-5965-431c-b032-08b827117d80,CUS-007,NYSTAR-039,Fondo,Advanced Institute for Manufacturing (AIM),Mohawk Valley Community College,Existing,2026-10-19T23:21:04.710Z,,,,

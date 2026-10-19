@@ -1,6 +1,7 @@
 "use client"
 
-import { Fragment, useEffect, useId, useRef, useState } from "react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
 import {
   ArrowRight,
   ChevronRight,
@@ -14,6 +15,10 @@ import {
 } from "lucide-react"
 
 import AddConnectionsDrawer from "@/components/add-connections-drawer"
+import ConnectProgramDrawer from "@/components/connect-program-drawer"
+import ExplorerListbox from "@/components/explorer-listbox"
+import InnovationPartnerPicker from "@/components/innovation-partner-picker"
+import NystarProgramPicker from "@/components/nystar-program-picker"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
 import { Button } from "@/components/ui/button"
@@ -41,198 +46,17 @@ import {
 } from "@/components/ui/sidebar"
 import { Toggle } from "@/components/ui/toggle"
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group"
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
-  NystarProgramOption,
   NystarProgramGroup,
 } from "@/lib/nystar-locations"
 
-type ProgramGrouping = "alpha" | "type" | "region"
-type PartnerGrouping = "alpha" | "region"
 type ExplorerSectionId = "program" | "partner" | "connections" | "tour"
-
-function comparePrograms(left: NystarProgramOption, right: NystarProgramOption) {
-  return (
-    left.name.localeCompare(right.name, undefined, { sensitivity: "base" }) ||
-    left.id.localeCompare(right.id)
-  )
-}
-
-type ExplorerListboxOption = {
-  value: string
-  label: string
-  group?: string
-}
-
-function ExplorerListbox({
-  labelledBy,
-  options,
-  value,
-  visibleRows,
-  onValueChange,
-}: {
-  labelledBy: string
-  options: ExplorerListboxOption[]
-  value: string
-  visibleRows: number
-  onValueChange: (value: string) => void
-}) {
-  const listboxId = useId()
-  const listboxRef = useRef<HTMLDivElement>(null)
-  const optionRefs = useRef(new Map<string, HTMLDivElement>())
-  const typeahead = useRef("")
-  const typeaheadTimeout = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [activeValue, setActiveValue] = useState(
-    value || options[0]?.value || ""
-  )
-  const activeIndex = options.findIndex(
-    (option) => option.value === activeValue
-  )
-  const selectedIndex = options.findIndex((option) => option.value === value)
-  const resolvedActiveIndex =
-    activeIndex >= 0 ? activeIndex : Math.max(selectedIndex, 0)
-  const activeOption = options[resolvedActiveIndex]
-  const activeOptionValue = activeOption?.value
-  const optionKey = options.map((option) => option.value).join("\0")
-  const groupedOptions = options.reduce<
-    { label?: string; options: ExplorerListboxOption[] }[]
-  >((groups, option) => {
-    const lastGroup = groups[groups.length - 1]
-    if (lastGroup && lastGroup.label === option.group) {
-      lastGroup.options.push(option)
-    } else {
-      groups.push({ label: option.group, options: [option] })
-    }
-    return groups
-  }, [])
-
-  useEffect(() => {
-    if (activeOptionValue) {
-      optionRefs.current
-        .get(activeOptionValue)
-        ?.scrollIntoView({ block: "nearest" })
-    }
-  }, [activeOptionValue, optionKey])
-
-  function selectAt(index: number) {
-    const nextOption = options[Math.max(0, Math.min(index, options.length - 1))]
-    if (!nextOption) return
-    setActiveValue(nextOption.value)
-    onValueChange(nextOption.value)
-  }
-
-  function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {
-    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-      event.preventDefault()
-      selectAt(resolvedActiveIndex + (event.key === "ArrowDown" ? 1 : -1))
-      return
-    }
-    if (event.key === "Home" || event.key === "End") {
-      event.preventDefault()
-      selectAt(event.key === "Home" ? 0 : options.length - 1)
-      return
-    }
-    if (event.key === "PageDown" || event.key === "PageUp") {
-      event.preventDefault()
-      const offset = event.key === "PageDown" ? visibleRows : -visibleRows
-      selectAt(resolvedActiveIndex + offset)
-      return
-    }
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault()
-      if (activeOption) onValueChange(activeOption.value)
-      return
-    }
-    if (
-      event.key.length !== 1 ||
-      event.key === " " ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey
-    ) {
-      return
-    }
-
-    event.preventDefault()
-    typeahead.current += event.key.toLocaleLowerCase()
-    if (typeaheadTimeout.current) clearTimeout(typeaheadTimeout.current)
-    typeaheadTimeout.current = setTimeout(() => {
-      typeahead.current = ""
-      typeaheadTimeout.current = null
-    }, 700)
-
-    const query = typeahead.current
-    const searchOptions = [
-      ...options.slice(resolvedActiveIndex + 1),
-      ...options.slice(0, resolvedActiveIndex + 1),
-    ]
-    const match = searchOptions.find((option) =>
-      option.label.toLocaleLowerCase().startsWith(query)
-    )
-    if (match) selectAt(options.indexOf(match))
-  }
-
-  function renderOption(option: ExplorerListboxOption) {
-    const optionIndex = options.indexOf(option)
-    return (
-      <div
-        key={option.value}
-        id={`${listboxId}-option-${optionIndex}`}
-        ref={(element) => {
-          if (element) optionRefs.current.set(option.value, element)
-          else optionRefs.current.delete(option.value)
-        }}
-        role="option"
-        aria-selected={option.value === value}
-        data-active={option.value === activeOptionValue}
-        className="network-listbox-option flex min-h-6 cursor-pointer items-center rounded-sm px-2 py-0.5 leading-5"
-        title={option.label}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
-          setActiveValue(option.value)
-          onValueChange(option.value)
-          listboxRef.current?.focus()
-        }}
-      >
-        <span className="min-w-0 flex-1 truncate">{option.label}</span>
-      </div>
-    )
-  }
-
-  return (
-    <div
-      ref={listboxRef}
-      id={listboxId}
-      role="listbox"
-      tabIndex={0}
-      aria-labelledby={labelledBy}
-      aria-activedescendant={
-        activeOption ? `${listboxId}-option-${resolvedActiveIndex}` : undefined
-      }
-      className="network-listbox max-h-60 w-full overflow-y-auto rounded-md border border-input bg-background p-1 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
-      style={{ height: `${visibleRows * 24}px` }}
-      onKeyDown={handleKeyDown}
-    >
-      {groupedOptions.map((group, index) => (
-        <Fragment key={group.label ?? `ungrouped-${index}`}>
-          {group.label ? (
-            <div role="group" aria-label={group.label}>
-              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
-                {group.label}
-              </div>
-              {group.options.map(renderOption)}
-            </div>
-          ) : (
-            group.options.map(renderOption)
-          )}
-        </Fragment>
-      ))}
-    </div>
-  )
-}
 
 function ExplorerSection({
   headingId,
@@ -291,7 +115,7 @@ function ExplorerSection({
             >
               <div className="network-collapsible-panel__inner">
                 <div className="flex flex-col gap-3 px-3 pt-1 pb-3 text-sm">
-                {children}
+                  {children}
                 </div>
               </div>
             </div>
@@ -305,9 +129,13 @@ function ExplorerSection({
 function CollapsedExplorerNavigation({
   openSection,
   onSelectSection,
+  showTour,
+  showPartners,
 }: {
   openSection: ExplorerSectionId | null
   onSelectSection: (section: ExplorerSectionId) => void
+  showTour: boolean
+  showPartners: boolean
 }) {
   const { setOpen } = useSidebar()
 
@@ -337,22 +165,27 @@ function CollapsedExplorerNavigation({
   return (
     <SidebarGroup className="hidden p-0 group-data-[collapsible=icon]:block">
       <SidebarMenu className="gap-1">
-        {items.map(({ id, label, icon: Icon }) => (
-          <SidebarMenuItem key={id}>
-            <SidebarMenuButton
-              aria-label={label}
-              isActive={openSection === id}
-              onClick={() => {
-                onSelectSection(id)
-                setOpen(true)
-              }}
-              tooltip={label}
-              className="justify-center text-sidebar-foreground"
-            >
-              <Icon aria-hidden="true" />
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        ))}
+        {items
+          .filter(
+            ({ id }) =>
+              (id !== "tour" || showTour) && (id !== "partner" || showPartners)
+          )
+          .map(({ id, label, icon: Icon }) => (
+            <SidebarMenuItem key={id}>
+              <SidebarMenuButton
+                aria-label={label}
+                isActive={openSection === id}
+                onClick={() => {
+                  onSelectSection(id)
+                  setOpen(true)
+                }}
+                tooltip={label}
+                className="justify-center text-sidebar-foreground"
+              >
+                <Icon aria-hidden="true" />
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ))}
       </SidebarMenu>
     </SidebarGroup>
   )
@@ -369,26 +202,18 @@ export default function NetworkExplorerPanel({
   regions: NystarProgramGroup[]
   tourRegions: string[]
 }) {
-  const programs = categories
-    .flatMap((group) => group.programs)
-    .sort(comparePrograms)
+  const programs = categories.flatMap((group) => group.programs)
   const innovationPartners = Array.from(
     new Set(
       locations
-        .flatMap((location) => [
-          ...location.assets.map((asset) => asset.hostOrganization),
-          ...location.customers.map((customer) => customer.name),
-        ])
+        .flatMap((location) =>
+          location.customers.map((customer) => customer.name)
+        )
         .map((name) => name.trim())
         .filter(Boolean)
     )
   ).sort((left, right) =>
     left.localeCompare(right, undefined, { sensitivity: "base" })
-  )
-  const regionByProgramId = new Map(
-    regions.flatMap((region) =>
-      region.programs.map((program) => [program.id, region.name] as const)
-    )
   )
   const regionsByPartner = new Map<string, Set<string>>()
   const addPartnerRegion = (partner: string, region?: string) => {
@@ -398,37 +223,19 @@ export default function NetworkExplorerPanel({
   }
 
   for (const location of locations) {
-    for (const asset of location.assets) {
-      if (asset.hostOrganization) {
-        addPartnerRegion(
-          asset.hostOrganization,
-          regionByProgramId.get(asset.id)
-        )
-      }
-    }
-
     for (const customer of location.customers) {
-      if (customer.connections.length === 0) {
-        addPartnerRegion(customer.name)
-        continue
-      }
-
-      for (const connection of customer.connections) {
-        addPartnerRegion(
-          customer.name,
-          regionByProgramId.get(connection.assetId)
-        )
-      }
+      addPartnerRegion(customer.name.trim(), customer.region)
     }
   }
 
   const partnersByRegion = new Map<string, string[]>()
   for (const partner of innovationPartners) {
-    const partnerRegions = regionsByPartner.get(partner) ?? new Set(["Unassigned"])
+    const partnerRegions =
+      regionsByPartner.get(partner) ?? new Set(["Unassigned"])
     const region =
       partnerRegions.size > 1
         ? "Multiple Regions"
-        : partnerRegions.values().next().value ?? "Unassigned"
+        : (partnerRegions.values().next().value ?? "Unassigned")
     const partners = partnersByRegion.get(region) ?? []
     partners.push(partner)
     partnersByRegion.set(region, partners)
@@ -444,19 +251,25 @@ export default function NetworkExplorerPanel({
 
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
+  const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
-  const [programGrouping, setProgramGrouping] = useState<ProgramGrouping>(
-    "alpha"
-  )
-  const [partnerGrouping, setPartnerGrouping] = useState<PartnerGrouping>(
-    "alpha"
-  )
+  const [showTour, setShowTour] = useState(true)
+  const [showPartners, setShowPartners] = useState(true)
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
     "program"
   )
+  const router = useRouter()
+
+  function selectSection(section: ExplorerSectionId | null) {
+    if (section === "partner" && openSection !== "partner") router.refresh()
+    setOpenSection(section)
+  }
+  const [recentConnections, setRecentConnections] = useState<
+    RecentConnection[]
+  >([])
   const [tourStarted, setTourStarted] = useState(false)
   const [selectedTourRegion, setSelectedTourRegion] = useState("all")
   const selectedProgram = programs.find(
@@ -465,28 +278,6 @@ export default function NetworkExplorerPanel({
   const selectedProgramIsMapped = locations.some((location) =>
     location.assets.some((asset) => asset.id === selectedProgramId)
   )
-  const programOptions =
-    programGrouping === "alpha"
-      ? programs.map((program) => ({ value: program.id, label: program.name }))
-      : (programGrouping === "type" ? categories : regions).flatMap((group) =>
-          [...group.programs]
-            .sort(comparePrograms)
-            .map((program) => ({
-              value: program.id,
-              label: program.name,
-              group: group.name,
-            }))
-        )
-  const partnerOptions =
-    partnerGrouping === "alpha"
-      ? innovationPartners.map((partner) => ({ value: partner, label: partner }))
-      : partnerRegionGroups.flatMap((group) =>
-          group.partners.map((partner) => ({
-            value: partner,
-            label: partner,
-            group: group.name,
-          }))
-        )
   const tourRegionOptions = [
     { value: "all", label: "All Regions" },
     ...tourRegions.map((region) => ({ value: region, label: region })),
@@ -503,17 +294,17 @@ export default function NetworkExplorerPanel({
         </SidebarHeader>
         <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
           <CollapsedExplorerNavigation
+            showTour={showTour}
+            showPartners={showPartners}
             openSection={openSection}
-            onSelectSection={setOpenSection}
+            onSelectSection={selectSection}
           />
           <ExplorerSection
             headingId="find-program-heading"
             icon={<Star aria-hidden="true" className="shrink-0" />}
             title="Find a NYSTAR Program"
             open={openSection === "program"}
-            onOpenChange={(open) =>
-              setOpenSection(open ? "program" : null)
-            }
+            onOpenChange={(open) => setOpenSection(open ? "program" : null)}
           >
             <Alert className="border-sidebar-border bg-transparent">
               <Info aria-hidden="true" />
@@ -521,57 +312,30 @@ export default function NetworkExplorerPanel({
                 Select a NYSTAR program to view its connections on the map.
               </AlertDescription>
             </Alert>
-            <div className="flex items-center justify-between gap-2">
-              <ToggleGroup
-                aria-label="Group programs by"
-                value={[programGrouping]}
-                onValueChange={(value) => {
-                  const nextGrouping = value[0]
-                  if (
-                    nextGrouping === "alpha" ||
-                    nextGrouping === "type" ||
-                    nextGrouping === "region"
-                  ) {
-                    setProgramGrouping(nextGrouping)
-                  }
-                }}
-                variant="outline"
-                size="sm"
-                spacing={0}
-              >
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="alpha"
-                >
-                  A to Z
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="type"
-                >
-                  Program Type
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="region"
-                >
-                  NYSTAR Region
-                </ToggleGroupItem>
-              </ToggleGroup>
-              <p className="shrink-0 text-right text-xs text-muted-foreground">
-                {programs.length} programs
-              </p>
-            </div>
-            <ExplorerListbox
+            <NystarProgramPicker
+              categories={categories}
+              regions={regions}
               labelledBy="find-program-heading"
-              options={programOptions}
               value={selectedProgramId}
-              visibleRows={9}
               onValueChange={(value) => {
                 setSelectedProgramId(value)
                 setSelectedPartnerName("")
+                setSelectionRevision((revision) => revision + 1)
               }}
             />
+            {selectedProgram && (
+              <ConnectProgramDrawer
+                key={selectedProgram.id}
+                programId={selectedProgram.id}
+                programName={selectedProgram.name}
+                categories={categories}
+                regions={regions}
+                partners={innovationPartners}
+                partnerRegionGroups={partnerRegionGroups}
+                onStart={() => setRecentConnections([])}
+                onSaved={setRecentConnections}
+              />
+            )}
             {selectedProgram && !selectedProgramIsMapped && (
               <p className="mt-2 text-xs text-muted-foreground">
                 This statewide program has no mapped location.
@@ -579,121 +343,98 @@ export default function NetworkExplorerPanel({
             )}
           </ExplorerSection>
 
-          <ExplorerSection
-            headingId="find-partner-heading"
-            icon={<Circle aria-hidden="true" className="shrink-0" />}
-            title="Find an Innovation Partner"
-            open={openSection === "partner"}
-            onOpenChange={(open) =>
-              setOpenSection(open ? "partner" : null)
-            }
-          >
-            <Alert className="border-sidebar-border bg-transparent">
-              <Info aria-hidden="true" />
-              <AlertDescription>
-                Select an innovation partner to view its connections on the map.
-              </AlertDescription>
-            </Alert>
-            <div className="flex items-center justify-between gap-2">
-              <ToggleGroup
-                aria-label="Group innovation partners by"
-                value={[partnerGrouping]}
+          {showPartners && (
+            <ExplorerSection
+              headingId="find-partner-heading"
+              icon={<Circle aria-hidden="true" className="shrink-0" />}
+              title="Find an Innovation Partner"
+              open={openSection === "partner"}
+              onOpenChange={(open) => selectSection(open ? "partner" : null)}
+            >
+              <Alert className="border-sidebar-border bg-transparent">
+                <Info aria-hidden="true" />
+                <AlertDescription>
+                  Select an innovation partner to view its connections on the
+                  map.
+                </AlertDescription>
+              </Alert>
+              <InnovationPartnerPicker
+                partners={innovationPartners}
+                regionGroups={partnerRegionGroups}
+                labelledBy="find-partner-heading"
+                value={selectedPartnerName}
                 onValueChange={(value) => {
-                  const nextGrouping = value[0]
-                  if (nextGrouping === "alpha" || nextGrouping === "region") {
-                    setPartnerGrouping(nextGrouping)
-                  }
+                  setSelectedPartnerName(value)
+                  setSelectedProgramId("")
+                  setSelectionRevision((revision) => revision + 1)
                 }}
-                variant="outline"
-                size="sm"
-                spacing={0}
-              >
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="alpha"
-                >
-                  A to Z
-                </ToggleGroupItem>
-                <ToggleGroupItem
-                  className="drawer-review-control"
-                  value="region"
-                >
-                  NYSTAR Region
-                </ToggleGroupItem>
-              </ToggleGroup>
-              <p className="shrink-0 text-right text-xs text-muted-foreground">
-                {innovationPartners.length} partners
-              </p>
-            </div>
-            <ExplorerListbox
-              labelledBy="find-partner-heading"
-              options={partnerOptions}
-              value={selectedPartnerName}
-              visibleRows={7}
-              onValueChange={(value) => {
-                setSelectedPartnerName(value)
-                setSelectedProgramId("")
-              }}
-            />
-          </ExplorerSection>
+              />
+            </ExplorerSection>
+          )}
 
           <ExplorerSection
             headingId="add-connections-heading"
             icon={<Link aria-hidden="true" className="shrink-0" />}
             title="Add a Program, Partner, or Connections"
             open={openSection === "connections"}
-            onOpenChange={(open) =>
-              setOpenSection(open ? "connections" : null)
-            }
+            onOpenChange={(open) => setOpenSection(open ? "connections" : null)}
           >
-            <AddConnectionsDrawer categories={categories} regions={regions} />
+            <AddConnectionsDrawer
+              categories={categories}
+              regions={regions}
+              partners={innovationPartners}
+              onStart={() => setRecentConnections([])}
+              onSaved={setRecentConnections}
+            />
           </ExplorerSection>
 
-          <ExplorerSection
-            headingId="guided-tour-heading"
-            icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
-            title="Take a Guided Tour of the Network"
-            open={openSection === "tour"}
-            onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
-          >
-            <Alert className="border-sidebar-border bg-transparent">
-              <Info aria-hidden="true" />
-              <AlertDescription>
-                Select a region below to start your tour.
-              </AlertDescription>
-            </Alert>
-            <ExplorerListbox
-              labelledBy="guided-tour-heading"
-              options={tourRegionOptions}
-              value={selectedTourRegion}
-              visibleRows={6}
-              onValueChange={setSelectedTourRegion}
-            />
-            <div className="flex items-center justify-between gap-2">
-              <Button
-                type="button"
-                variant="default"
-                size="sm"
-                className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
-                onClick={() => setTourStarted((started) => !started)}
-              >
-                {tourStarted ? "Exit Tour" : "Start Tour"}
-              </Button>
-              {tourStarted && (
-                <div className="ml-auto flex items-center gap-2">
-                  <Button type="button" variant="brand-outline" size="sm">
-                    Next
-                  </Button>
-                  <Button type="button" variant="brand-outline" size="sm">
-                    Auto
-                  </Button>
-                </div>
-              )}
-            </div>
-          </ExplorerSection>
+          {showTour && (
+            <ExplorerSection
+              headingId="guided-tour-heading"
+              icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
+              title="Take a Guided Tour of the Network"
+              open={openSection === "tour"}
+              onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
+            >
+              <Alert className="border-sidebar-border bg-transparent">
+                <Info aria-hidden="true" />
+                <AlertDescription>
+                  Select a region below to start your tour.
+                </AlertDescription>
+              </Alert>
+              <ExplorerListbox
+                labelledBy="guided-tour-heading"
+                options={tourRegionOptions}
+                value={selectedTourRegion}
+                visibleRows={6}
+                onValueChange={setSelectedTourRegion}
+              />
+              <div className="flex items-center justify-between gap-2">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
+                  onClick={() => setTourStarted((started) => !started)}
+                >
+                  {tourStarted ? "Exit Tour" : "Start Tour"}
+                </Button>
+                {tourStarted && (
+                  <div className="ml-auto flex items-center gap-2">
+                    <Button type="button" variant="brand-outline" size="sm">
+                      Next
+                    </Button>
+                    <Button type="button" variant="brand-outline" size="sm">
+                      Auto
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </ExplorerSection>
+          )}
         </SidebarContent>
         <SidebarFooter className="items-end">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -713,7 +454,9 @@ export default function NetworkExplorerPanel({
                   checked={showRegionLabels}
                   onCheckedChange={setShowRegionLabels}
                 >
-                  {showRegionLabels ? "Hide Region Labels" : "Show Region Labels"}
+                  {showRegionLabels
+                    ? "Hide Region Labels"
+                    : "Show Region Labels"}
                 </DropdownMenuCheckboxItem>
                 <DropdownMenuCheckboxItem
                   checked={showCityLabels}
@@ -743,6 +486,51 @@ export default function NetworkExplorerPanel({
             >
               <FileText aria-hidden="true" />
             </Toggle>
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle innovation partners"
+                pressed={showPartners}
+                onPressedChange={(visible) => {
+                  setShowPartners(visible)
+                  if (!visible) {
+                    setOpenSection((section) =>
+                      section === "partner" ? null : section
+                    )
+                    if (selectedPartnerName) {
+                      setSelectedPartnerName("")
+                      setSelectionRevision((revision) => revision + 1)
+                    }
+                  }
+                }}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <Circle aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle innovation partners</TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle tour"
+                pressed={showTour}
+                onPressedChange={(visible) => {
+                  setShowTour(visible)
+                  if (!visible) {
+                    setTourStarted(false)
+                    setOpenSection((section) =>
+                      section === "tour" ? null : section
+                    )
+                  }
+                }}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <ArrowRight aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle tour</TooltipContent>
+            </Tooltip>
             <ThemeToggleButton />
           </div>
         </SidebarFooter>
@@ -756,10 +544,12 @@ export default function NetworkExplorerPanel({
           locations={locations}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
+          selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
           showRegionLabels={showRegionLabels}
           showCityLabels={showCityLabels}
+          recentConnections={recentConnections}
         />
       </SidebarInset>
     </SidebarProvider>

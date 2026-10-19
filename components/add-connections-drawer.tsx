@@ -4,6 +4,10 @@ import { useRouter } from "next/navigation"
 import { useState, type ChangeEvent, type FormEvent } from "react"
 import { ChevronRight, Plus, X } from "lucide-react"
 
+import OrganizationDetailsFields, {
+  emptyOrganizationDetails,
+  type OrganizationDetails,
+} from "@/components/organization-details-fields"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
@@ -31,20 +35,19 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
+import { normalizeOrganizationName } from "@/lib/organization-name"
+import type { RecentConnection } from "@/lib/recent-connection"
 
 type GroupingMode = "type" | "region"
 type ConnectionType = "Existing" | "Desired"
-
-type ConnectionDetails = {
-  organizationName: string
-  addressLine1: string
-  addressLine2: string
-  city: string
-  state: string
-  postalCode: string
-}
 
 type FollowupDetails = {
   followupName: string
@@ -62,22 +65,23 @@ const followupPhonePattern =
 export default function AddConnectionsDrawer({
   categories,
   regions,
+  partners,
+  onStart,
+  onSaved,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
+  partners: string[]
+  onStart?: () => void
+  onSaved?: (connections: RecentConnection[]) => void
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [step, setStep] = useState<1 | 2 | 3>(1)
   const [groupingMode, setGroupingMode] = useState<GroupingMode>("type")
-  const [details, setDetails] = useState<ConnectionDetails>({
-    organizationName: "",
-    addressLine1: "",
-    addressLine2: "",
-    city: "",
-    state: "NY",
-    postalCode: "",
-  })
+  const [details, setDetails] = useState<OrganizationDetails>(
+    emptyOrganizationDetails
+  )
   const [followupDetails, setFollowupDetails] = useState<FollowupDetails>({
     followupName: "",
     followupEmail: "",
@@ -104,14 +108,7 @@ export default function AddConnectionsDrawer({
   function resetForm() {
     setStep(1)
     setGroupingMode("type")
-    setDetails({
-      organizationName: "",
-      addressLine1: "",
-      addressLine2: "",
-      city: "",
-      state: "NY",
-      postalCode: "",
-    })
+    setDetails(emptyOrganizationDetails)
     setFollowupDetails({
       followupName: "",
       followupEmail: "",
@@ -145,6 +142,7 @@ export default function AddConnectionsDrawer({
     event.preventDefault()
     setFormError("")
     if (step === 1) {
+      if (organizationNameTaken) return
       setStep(2)
     } else if (step === 2) {
       setStep(3)
@@ -180,11 +178,33 @@ export default function AddConnectionsDrawer({
           })),
         }),
       })
-      const result = (await response.json()) as { error?: string }
+      const result = (await response.json()) as {
+        error?: string
+        customerId?: string
+      }
 
       if (!response.ok) {
         throw new Error(result.error ?? "Unable to save this connection.")
       }
+
+      const customerId = result.customerId
+      if (customerId) {
+        onSaved?.(
+          [...selectedPrograms].flatMap((assetId) => {
+            const connectionType = connectionTypes.get(assetId)
+            return connectionType
+              ? [
+                  {
+                    fromAssetId: assetId,
+                    to: { kind: "partner" as const, id: customerId },
+                    connectionType,
+                  },
+                ]
+              : []
+          })
+        )
+      }
+      toast.add({ title: "Connection added, thanks!", type: "success" })
 
       setHasSubmitted(true)
       setFormMessage(`${details.organizationName} was added to the network.`)
@@ -235,6 +255,14 @@ export default function AddConnectionsDrawer({
     })
   }
 
+  const organizationName = details.organizationName.trim()
+  const organizationNameTaken =
+    Boolean(organizationName) &&
+    partners.some(
+      (partner) =>
+        normalizeOrganizationName(partner) ===
+        normalizeOrganizationName(organizationName)
+    )
   const canSubmit =
     selectedPrograms.size > 0 &&
     [...selectedPrograms].every((programId) => connectionTypes.has(programId))
@@ -274,6 +302,7 @@ export default function AddConnectionsDrawer({
       open={drawerOpen}
       onOpenChange={(open) => {
         setDrawerOpen(open)
+        if (open) onStart?.()
         if (!open) resetForm()
       }}
       swipeDirection="right"
@@ -319,106 +348,15 @@ export default function AddConnectionsDrawer({
         >
           <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             {step === 1 ? (
-              <FieldGroup className="gap-4">
-                <Field>
-                  <FieldLabel
-                    className="drawer-field-label"
-                    htmlFor="organization-name"
-                  >
-                    Organization name
-                  </FieldLabel>
-                  <Input
-                    id="organization-name"
-                    name="organizationName"
-                    autoComplete="organization"
-                    value={details.organizationName}
-                    onChange={updateDetails}
-                    required
-                  />
-                </Field>
-                <FieldGroup className="gap-4">
-                  <Field>
-                    <FieldLabel
-                      className="drawer-field-label"
-                      htmlFor="address-line-1"
-                    >
-                      Address line 1
-                    </FieldLabel>
-                    <Input
-                      id="address-line-1"
-                      name="addressLine1"
-                      autoComplete="address-line1"
-                      value={details.addressLine1}
-                      onChange={updateDetails}
-                      required
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel
-                      className="drawer-field-label"
-                      htmlFor="address-line-2"
-                    >
-                      Address line 2 (optional)
-                    </FieldLabel>
-                    <Input
-                      id="address-line-2"
-                      name="addressLine2"
-                      autoComplete="address-line2"
-                      value={details.addressLine2}
-                      onChange={updateDetails}
-                    />
-                  </Field>
-                  <Field>
-                    <FieldLabel className="drawer-field-label" htmlFor="city">
-                      City
-                    </FieldLabel>
-                    <Input
-                      id="city"
-                      name="city"
-                      autoComplete="address-level2"
-                      value={details.city}
-                      onChange={updateDetails}
-                      required
-                    />
-                  </Field>
-                  <FieldGroup className="grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
-                    <Field>
-                      <FieldLabel
-                        className="drawer-field-label"
-                        htmlFor="state"
-                      >
-                        State
-                      </FieldLabel>
-                      <Input
-                        id="state"
-                        name="state"
-                        autoComplete="address-level1"
-                        value={details.state}
-                        maxLength={2}
-                        disabled
-                        required
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel
-                        className="drawer-field-label"
-                        htmlFor="postal-code"
-                      >
-                        ZIP code
-                      </FieldLabel>
-                      <Input
-                        id="postal-code"
-                        name="postalCode"
-                        autoComplete="postal-code"
-                        inputMode="numeric"
-                        value={details.postalCode}
-                        onChange={updateDetails}
-                        required
-                      />
-                    </Field>
-                  </FieldGroup>
-                </FieldGroup>
-              </FieldGroup>
+              <OrganizationDetailsFields
+                details={details}
+                onChange={updateDetails}
+                organizationNameError={
+                  organizationNameTaken
+                    ? `An organization named "${organizationName}" already exists.`
+                    : ""
+                }
+              />
             ) : step === 2 ? (
               <FieldGroup className="gap-3">
                 <div className="flex w-full items-center justify-between gap-3">
@@ -442,12 +380,18 @@ export default function AddConnectionsDrawer({
                     >
                       Program Type
                     </ToggleGroupItem>
-                    <ToggleGroupItem
-                      className="drawer-review-control"
-                      value="region"
-                    >
-                      NYSTAR Region
-                    </ToggleGroupItem>
+                    <Tooltip>
+                      <ToggleGroupItem
+                        className="drawer-review-control"
+                        value="region"
+                        render={<TooltipTrigger />}
+                      >
+                        ESD Region
+                      </ToggleGroupItem>
+                      <TooltipContent>
+                        Empire State Development regions
+                      </TooltipContent>
+                    </Tooltip>
                   </ToggleGroup>
                   <p className="shrink-0 text-right text-sm text-muted-foreground">
                     {selectedPrograms.size} selected
@@ -480,7 +424,11 @@ export default function AddConnectionsDrawer({
                                 className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                                 data-icon="inline-start"
                               />
-                              <span>{group.name}</span>
+                              <span>
+                                {groupingMode === "region"
+                                  ? `- ${group.name}`
+                                  : group.name}
+                              </span>
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {group.programs.length}
                               </span>
@@ -759,6 +707,7 @@ export default function AddConnectionsDrawer({
                 variant="brand"
                 size="lg"
                 className="min-w-24"
+                disabled={organizationNameTaken}
               >
                 Next
               </Button>
