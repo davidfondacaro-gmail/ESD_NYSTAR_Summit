@@ -2,7 +2,7 @@
 
 import L from "leaflet"
 import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
-import { useEffect, useMemo, useRef, type RefObject } from "react"
+import { useEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
@@ -20,6 +20,11 @@ import type { NystarLocationGroup } from "@/lib/nystar-locations"
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
 const markerItemCounts = new WeakMap<L.Marker, number>()
+
+type MapPopupRequest = {
+  locationKey: string
+  selectionRevision: number
+}
 
 function numberedMarkerIcon(count: number) {
   return L.divIcon({
@@ -393,43 +398,37 @@ function locationKey(location: NystarLocationGroup) {
 }
 
 function OpenSelectedMapSelectionPopup({
-  locations,
+  popupLocation,
   markerRefs,
   clusterRef,
-  selectedProgramId,
-  selectedPartnerName,
+  selectionRevision,
+  mapPopupRequest,
 }: {
-  locations: NystarLocationGroup[]
+  popupLocation: NystarLocationGroup | undefined
   markerRefs: RefObject<Map<string, L.Marker>>
   clusterRef: RefObject<L.MarkerClusterGroup | null>
-  selectedProgramId: string
-  selectedPartnerName: string
+  selectionRevision: number
+  mapPopupRequest: MapPopupRequest | null
 }) {
   const map = useMap()
 
   useEffect(() => {
-    if (!selectedProgramId && !selectedPartnerName) {
-      return
-    }
-
     map.closePopup()
-    const matchingLocation = locations.find((location) =>
-      selectedProgramId
-        ? location.assets.some((asset) => asset.id === selectedProgramId)
-        : location.customers.some(
-            (customer) => customer.name === selectedPartnerName
-          )
-    )
-    if (!matchingLocation) {
+    if (!popupLocation) {
       return
     }
 
-    const marker = markerRefs.current.get(locationKey(matchingLocation))
+    const marker = markerRefs.current.get(locationKey(popupLocation))
     const group = clusterRef.current
     if (!marker || !group) return
+    let cancelled = false
 
     function revealMarker() {
       if (!group!.hasLayer(marker!)) return
+      if (mapPopupRequest?.selectionRevision === selectionRevision) {
+        openPopup()
+        return
+      }
       const parent = group!.getVisibleParent(marker!)
       if (parent instanceof L.MarkerCluster) {
         group!.once("spiderfied", openPopup)
@@ -440,15 +439,16 @@ function OpenSelectedMapSelectionPopup({
     }
 
     function openPopup() {
-      marker!.openPopup()
+      if (!cancelled) marker!.openPopup()
     }
 
     const registration = window.setTimeout(revealMarker, 0)
     return () => {
+      cancelled = true
       window.clearTimeout(registration)
       group.off("spiderfied", openPopup)
     }
-  }, [clusterRef, locations, map, markerRefs, selectedPartnerName, selectedProgramId])
+  }, [clusterRef, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
 
   return null
 }
@@ -489,6 +489,7 @@ export default function NystarLeafletMap({
   locations,
   selectedProgramId,
   selectedPartnerName,
+  selectionRevision,
   showZoomControls,
   showMapLegend,
   showRegionLabels,
@@ -497,6 +498,7 @@ export default function NystarLeafletMap({
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
+  selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
   showRegionLabels: boolean
@@ -504,6 +506,19 @@ export default function NystarLeafletMap({
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
+  const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
+  const showFullLocation = mapPopupRequest?.selectionRevision === selectionRevision
+  const sidebarLocation = locations.find((location) =>
+    selectedProgramId
+      ? location.assets.some((asset) => asset.id === selectedProgramId)
+      : location.customers.some((customer) => customer.name === selectedPartnerName)
+  )
+  const selectedCustomerId = sidebarLocation?.customers.find(
+    (customer) => customer.name === selectedPartnerName
+  )?.id
+  const popupLocation = showFullLocation
+    ? locations.find((location) => locationKey(location) === mapPopupRequest.locationKey)
+    : sidebarLocation
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -542,11 +557,11 @@ export default function NystarLeafletMap({
       <RecenterMapOnSidebarClose />
       <MepRegionsLayer showRegionLabels={showRegionLabels} />
       <OpenSelectedMapSelectionPopup
-        locations={locations}
+        popupLocation={popupLocation}
         markerRefs={markerRefs}
         clusterRef={clusterRef}
-        selectedProgramId={selectedProgramId}
-        selectedPartnerName={selectedPartnerName}
+        selectionRevision={selectionRevision}
+        mapPopupRequest={mapPopupRequest}
       />
       <MarkerClusterGroup
         ref={clusterRef}
@@ -558,9 +573,23 @@ export default function NystarLeafletMap({
         animate={false}
         spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
       >
-      {locations.map((location) => (
+      {locations.map((location) => {
+        const selectedOnly = !showFullLocation && location === sidebarLocation
+        const assets = selectedOnly
+          ? location.assets.filter((asset) => asset.id === selectedProgramId)
+          : location.assets
+        const customers = selectedOnly
+          ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
+          : location.customers
+        return (
           <Marker
             key={`${location.latitude}-${location.longitude}`}
+            eventHandlers={{
+              click: () => setMapPopupRequest({
+                locationKey: locationKey(location),
+                selectionRevision,
+              }),
+            }}
             ref={(marker) => {
               const key = locationKey(location)
               if (marker) {
@@ -580,7 +609,7 @@ export default function NystarLeafletMap({
             <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
               <div className="network-popup">
                 <ul className="network-popup__assets">
-                  {location.assets.map((asset) => (
+                  {assets.map((asset) => (
                     <li
                       className="network-popup__asset"
                       key={`${asset.name}-${asset.hostOrganization}`}
@@ -620,7 +649,7 @@ export default function NystarLeafletMap({
                       </span>
                     </li>
                   ))}
-                  {location.customers.map((customer) => (
+                  {customers.map((customer) => (
                     <li
                       className="network-popup__customer"
                       key={customer.id}
@@ -663,7 +692,8 @@ export default function NystarLeafletMap({
               </div>
             </Popup>
           </Marker>
-      ))}
+        )
+      })}
       </MarkerClusterGroup>
       <Pane
         name="city-labels"

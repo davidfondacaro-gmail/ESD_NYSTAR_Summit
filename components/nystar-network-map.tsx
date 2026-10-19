@@ -13,6 +13,7 @@ export default function NystarNetworkMap({
   locations,
   selectedProgramId,
   selectedPartnerName,
+  selectionRevision,
   showZoomControls,
   showMapLegend,
   showRegionLabels,
@@ -21,6 +22,7 @@ export default function NystarNetworkMap({
   locations: NystarLocationGroup[]
   selectedProgramId: string
   selectedPartnerName: string
+  selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
   showRegionLabels: boolean
@@ -31,6 +33,7 @@ export default function NystarNetworkMap({
       locations={locations}
       selectedProgramId={selectedProgramId}
       selectedPartnerName={selectedPartnerName}
+      selectionRevision={selectionRevision}
       showZoomControls={showZoomControls}
       showMapLegend={showMapLegend}
       showRegionLabels={showRegionLabels}

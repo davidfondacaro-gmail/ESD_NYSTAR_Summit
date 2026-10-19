@@ -422,6 +422,7 @@ export default function NetworkExplorerPanel({
 
   const [selectedProgramId, setSelectedProgramId] = useState("")
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
+  const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
@@ -554,6 +555,7 @@ export default function NetworkExplorerPanel({
               onValueChange={(value) => {
                 setSelectedProgramId(value)
                 setSelectedPartnerName("")
+                setSelectionRevision((revision) => revision + 1)
               }}
             />
             {selectedProgram && !selectedProgramIsMapped && (
@@ -621,6 +623,7 @@ export default function NetworkExplorerPanel({
               onValueChange={(value) => {
                 setSelectedPartnerName(value)
                 setSelectedProgramId("")
+                setSelectionRevision((revision) => revision + 1)
               }}
             />
           </ExplorerSection>
@@ -765,6 +768,7 @@ export default function NetworkExplorerPanel({
           locations={locations}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
+                    selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
           showRegionLabels={showRegionLabels}
