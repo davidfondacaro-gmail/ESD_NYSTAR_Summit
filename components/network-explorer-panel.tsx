@@ -213,7 +213,7 @@ function ExplorerListbox({
       aria-activedescendant={
         activeOption ? `${listboxId}-option-${resolvedActiveIndex}` : undefined
       }
-      className="network-listbox max-h-60 w-full overflow-y-auto rounded-md border border-input bg-background p-1 text-sm text-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="network-listbox max-h-60 w-full overflow-y-auto rounded-md border border-input bg-background p-1 text-sm text-muted-foreground shadow-xs outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
       style={{ height: `${visibleRows * 24}px` }}
       onKeyDown={handleKeyDown}
     >
@@ -221,7 +221,7 @@ function ExplorerListbox({
         <Fragment key={group.label ?? `ungrouped-${index}`}>
           {group.label ? (
             <div role="group" aria-label={group.label}>
-              <div className="px-2 py-1 text-xs font-medium text-muted-foreground">
+              <div className="px-2 py-1 text-xs font-medium text-foreground">
                 {group.label}
               </div>
               {group.options.map(renderOption)}
