@@ -440,7 +440,7 @@ body {
 .network-map-legend__line {
   display: block;
   width: 16px;
-  border-top: 2px solid var(--brand-yellow);
+  border-top: 1px solid var(--brand-yellow);
 }
 
 .network-map-legend__line--dashed {
@@ -449,7 +449,7 @@ body {
 
 .network-connection-line {
   stroke: var(--brand-yellow);
-  stroke-width: 2px;
+  stroke-width: 1px;
   stroke-opacity: 1;
   stroke-linecap: butt;
   fill: none;
