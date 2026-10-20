@@ -22,6 +22,7 @@ export default function NystarNetworkMap({
   showCityLabels,
   recentConnections,
   popupDismissRevision,
+  onConnectProgram,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
@@ -34,6 +35,7 @@ export default function NystarNetworkMap({
   showCityLabels: boolean
   recentConnections: RecentConnection[]
   popupDismissRevision: number
+  onConnectProgram?: (programId: string) => void
 }) {
   return (
     <LeafletMap
@@ -48,6 +50,7 @@ export default function NystarNetworkMap({
       showCityLabels={showCityLabels}
       recentConnections={recentConnections}
       popupDismissRevision={popupDismissRevision}
+      onConnectProgram={onConnectProgram}
     />
   )
 }

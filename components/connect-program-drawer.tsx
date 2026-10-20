@@ -83,6 +83,8 @@ export default function ConnectProgramDrawer({
   partnerRegionGroups,
   onStart,
   onSaved,
+  open: openProp,
+  onOpenChange,
 }: {
   programId: string
   programName: string
@@ -92,10 +94,17 @@ export default function ConnectProgramDrawer({
   partnerRegionGroups: PartnerRegionGroup[]
   onStart?: () => void
   onSaved?: (connections: RecentConnection[]) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const id = useId()
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = openProp ?? uncontrolledOpen
+  function setOpen(nextOpen: boolean) {
+    setUncontrolledOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const [connectionType, setConnectionType] = useState("")
   const [targetProgramId, setTargetProgramId] = useState("")
   const [targetPartnerName, setTargetPartnerName] = useState("")

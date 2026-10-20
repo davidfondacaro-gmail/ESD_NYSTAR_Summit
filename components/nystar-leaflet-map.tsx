@@ -15,6 +15,8 @@ import {
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { Link } from "lucide-react"
 import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
 import type { NystarLocationGroup } from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
@@ -609,6 +611,7 @@ export default function NystarLeafletMap({
   showCityLabels,
   recentConnections,
   popupDismissRevision,
+  onConnectProgram,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
@@ -621,6 +624,7 @@ export default function NystarLeafletMap({
   showCityLabels: boolean
   recentConnections: RecentConnection[]
   popupDismissRevision: number
+  onConnectProgram?: (programId: string) => void
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
@@ -748,6 +752,20 @@ export default function NystarLeafletMap({
                       .filter(Boolean)
                       .join(", ")}
                   </span>
+                  {onConnectProgram && (
+                    <div className="network-popup__footer">
+                      <Button
+                        type="button"
+                        variant="brand-link"
+                        size="inline"
+                        className="gap-1.5 text-xs [&_svg:not([class*='size-'])]:size-3.5"
+                        onClick={() => onConnectProgram(asset.id)}
+                      >
+                        <Link data-icon="inline-start" />
+                        Connect with this program
+                      </Button>
+                    </div>
+                  )}
                 </li>
               ))}
               {customers.map((customer) => (

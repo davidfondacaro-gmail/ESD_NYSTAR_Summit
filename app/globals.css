@@ -662,6 +662,13 @@ body {
   line-height: 1.35;
 }
 
+.network-popup__footer {
+  display: flex;
+  margin-top: 8px;
+  border-top: 1px solid var(--network-popup-border);
+  padding-top: 8px;
+}
+
 @keyframes map-appear {
   from {
     opacity: 0.65;

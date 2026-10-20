@@ -192,6 +192,24 @@ function CollapsedExplorerNavigation({
   )
 }
 
+function SidebarAwareNetworkMap({
+  onConnectProgram,
+  ...props
+}: Omit<React.ComponentProps<typeof NystarNetworkMap>, "onConnectProgram"> & {
+  onConnectProgram: (programId: string, sidebarExpanded: boolean) => void
+}) {
+  const { isMobile, open, openMobile } = useSidebar()
+
+  return (
+    <NystarNetworkMap
+      {...props}
+      onConnectProgram={(programId) =>
+        onConnectProgram(programId, isMobile ? openMobile : open)
+      }
+    />
+  )
+}
+
 export default function NetworkExplorerPanel({
   locations,
   categories,
@@ -273,12 +291,23 @@ export default function NetworkExplorerPanel({
     RecentConnection[]
   >([])
   const [popupDismissRevision, setPopupDismissRevision] = useState(0)
+  const [connectDrawerOpen, setConnectDrawerOpen] = useState(false)
 
   function startConnectionFlow() {
     setRecentConnections([])
     setPopupDismissRevision((revision) => revision + 1)
   }
 
+  function connectFromMap(programId: string, sidebarExpanded: boolean) {
+    if (programId !== selectedProgramId) {
+      setSelectedProgramId(programId)
+      setSelectedPartnerName("")
+      setSelectionRevision((revision) => revision + 1)
+    }
+    if (sidebarExpanded) setOpenSection("program")
+    startConnectionFlow()
+    setConnectDrawerOpen(true)
+  }
   const [tourStarted, setTourStarted] = useState(false)
   const [selectedTourRegion, setSelectedTourRegion] = useState("all")
   const selectedProgram = programs.find(
@@ -343,6 +372,8 @@ export default function NetworkExplorerPanel({
                 partnerRegionGroups={partnerRegionGroups}
                 onStart={startConnectionFlow}
                 onSaved={setRecentConnections}
+                open={connectDrawerOpen}
+                onOpenChange={setConnectDrawerOpen}
               />
             )}
             {selectedProgram && !selectedProgramIsMapped && (
@@ -562,7 +593,8 @@ export default function NetworkExplorerPanel({
           className="network-map-sidebar-trigger md:hidden"
           title="Toggle sidebar"
         />
-        <NystarNetworkMap
+        <SidebarAwareNetworkMap
+          onConnectProgram={connectFromMap}
           locations={locations}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
