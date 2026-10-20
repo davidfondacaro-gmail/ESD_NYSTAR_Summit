@@ -27,7 +27,9 @@ import AddConnectionsDrawer from "@/components/add-connections-drawer"
 import ConnectProgramDrawer from "@/components/connect-program-drawer"
 import ExplorerListbox from "@/components/explorer-listbox"
 import InnovationPartnerPicker from "@/components/innovation-partner-picker"
-import NystarProgramPicker from "@/components/nystar-program-picker"
+import NystarProgramPicker, {
+  SHOW_ALL_CONNECTIONS,
+} from "@/components/nystar-program-picker"
 import type { MapItemSelection } from "@/components/nystar-leaflet-map"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
@@ -294,7 +296,7 @@ export default function NetworkExplorerPanel({
       ),
     }))
 
-  const [selectedProgramId, setSelectedProgramId] = useState("")
+  const [selectedProgramId, setSelectedProgramId] = useState(SHOW_ALL_CONNECTIONS)
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
   const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
@@ -487,10 +489,12 @@ export default function NetworkExplorerPanel({
             <Alert className="border-sidebar-border bg-transparent">
               <Info aria-hidden="true" />
               <AlertDescription>
-                Select a NYSTAR program to view its connections on the map.
+                Select a NYSTAR program to view its connections, or select Show
+                All Connections to view the full network.
               </AlertDescription>
             </Alert>
             <NystarProgramPicker
+              includeAllConnections
               categories={categories}
               regions={regions}
               labelledBy="find-program-heading"
@@ -833,6 +837,7 @@ export default function NetworkExplorerPanel({
           locations={locations}
           programConnections={programConnections}
           selectedProgramId={selectedProgramId}
+          showAllConnections={selectedProgramId === SHOW_ALL_CONNECTIONS}
           selectedPartnerName={selectedPartnerName}
           selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}

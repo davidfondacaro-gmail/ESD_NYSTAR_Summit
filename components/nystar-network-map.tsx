@@ -19,6 +19,7 @@ export default function NystarNetworkMap({
   locations,
   programConnections,
   selectedProgramId,
+  showAllConnections,
   selectedPartnerName,
   selectionRevision,
   showZoomControls,
@@ -39,6 +40,7 @@ export default function NystarNetworkMap({
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
   selectedProgramId: string
+  showAllConnections: boolean
   selectedPartnerName: string
   selectionRevision: number
   showZoomControls: boolean
@@ -61,6 +63,7 @@ export default function NystarNetworkMap({
       locations={locations}
       programConnections={programConnections}
       selectedProgramId={selectedProgramId}
+      showAllConnections={showAllConnections}
       selectedPartnerName={selectedPartnerName}
       selectionRevision={selectionRevision}
       showZoomControls={showZoomControls}

@@ -842,6 +842,7 @@ export default function NystarLeafletMap({
   locations: groupedLocations,
   programConnections,
   selectedProgramId,
+  showAllConnections,
   selectedPartnerName,
   selectionRevision,
   showZoomControls,
@@ -862,6 +863,7 @@ export default function NystarLeafletMap({
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
   selectedProgramId: string
+  showAllConnections: boolean
   selectedPartnerName: string
   selectionRevision: number
   showZoomControls: boolean
@@ -950,12 +952,16 @@ export default function NystarLeafletMap({
   const popupCustomerKey = [...popupCustomerIds].sort().join("|")
   const popupConnections = useMemo(
     () => connectionsForPopup(
-      new Set(popupAssetKey ? popupAssetKey.split("|") : []),
-      new Set(popupCustomerKey ? popupCustomerKey.split("|") : []),
+      new Set(showAllConnections
+        ? groupedLocations.flatMap((location) => location.assets.map((asset) => asset.id))
+        : popupAssetKey ? popupAssetKey.split("|") : []),
+      new Set(showAllConnections
+        ? groupedLocations.flatMap((location) => location.customers.map((customer) => customer.id))
+        : popupCustomerKey ? popupCustomerKey.split("|") : []),
       programConnections,
       groupedLocations
     ),
-    [popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
+    [showAllConnections, popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
   )
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
