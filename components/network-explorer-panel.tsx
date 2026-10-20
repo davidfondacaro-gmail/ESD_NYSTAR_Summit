@@ -6,12 +6,12 @@ import {
   ArrowRight,
   ChevronRight,
   Circle,
+  Diamond,
   FileText,
   Group,
   Info,
   Link,
   Plus,
-  Star,
   Table2,
   Tag,
   ZoomIn,
@@ -150,7 +150,7 @@ function CollapsedExplorerNavigation({
     {
       id: "program",
       label: "NYSTAR Programs",
-      icon: Star,
+      icon: Diamond,
     },
     {
       id: "partner",
@@ -368,7 +368,7 @@ export default function NetworkExplorerPanel({
           />
           <ExplorerSection
             headingId="find-program-heading"
-            icon={<Star aria-hidden="true" className="shrink-0" />}
+            icon={<Diamond aria-hidden="true" className="shrink-0" />}
             title="NYSTAR Programs"
             open={openSection === "program"}
             onOpenChange={(open) => setOpenSection(open ? "program" : null)}
