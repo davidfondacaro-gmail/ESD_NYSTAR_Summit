@@ -72,6 +72,8 @@ export default function AddConnectionsDrawer({
   trigger,
   existingPartnerName,
   connectedAssetIds,
+  open,
+  onOpenChange,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
@@ -81,6 +83,8 @@ export default function AddConnectionsDrawer({
   trigger?: React.ReactElement
   existingPartnerName?: string
   connectedAssetIds?: string[]
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -329,9 +333,10 @@ export default function AddConnectionsDrawer({
 
   return (
     <Drawer
-      open={drawerOpen}
+      open={open ?? drawerOpen}
       onOpenChange={(open) => {
         setDrawerOpen(open)
+        onOpenChange?.(open)
         if (open) onStart?.()
         if (!open) resetForm()
       }}

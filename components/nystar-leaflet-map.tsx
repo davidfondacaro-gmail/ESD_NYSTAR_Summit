@@ -748,6 +748,7 @@ export default function NystarLeafletMap({
   recentConnections,
   popupDismissRevision,
   onConnectProgram,
+  onConnectPartner,
   onSelectItem,
   activeTourRegion,
   tourExitRevision,
@@ -767,6 +768,7 @@ export default function NystarLeafletMap({
   recentConnections: RecentConnection[]
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
+  onConnectPartner?: (partnerName: string) => void
   onSelectItem?: (item: MapItemSelection) => void
   activeTourRegion: string | null
   tourExitRevision: number
@@ -1003,6 +1005,20 @@ export default function NystarLeafletMap({
                         ` · ${connection.hostOrganization}`}
                     </span>
                   ))}
+                  {onConnectPartner && (
+                    <div className="network-popup__footer">
+                      <Button
+                        type="button"
+                        variant="brand-link"
+                        size="inline"
+                        className="gap-1.5 text-xs [&_svg:not([class*='size-'])]:size-3.5"
+                        onClick={() => onConnectPartner(customer.name.trim())}
+                      >
+                        <Link data-icon="inline-start" />
+                        Add NYSTAR Connections
+                      </Button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

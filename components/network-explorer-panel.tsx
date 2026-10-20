@@ -208,13 +208,15 @@ function CollapsedExplorerNavigation({
 function SidebarAwareNetworkMap({
   onConnectProgram,
   onSelectItem,
+  onConnectPartner,
   ...props
 }: Omit<
   React.ComponentProps<typeof NystarNetworkMap>,
-  "onConnectProgram" | "onSelectItem"
+  "onConnectProgram" | "onSelectItem" | "onConnectPartner"
 > & {
   onConnectProgram: (programId: string, sidebarExpanded: boolean) => void
   onSelectItem: (item: MapItemSelection, sidebarExpanded: boolean) => void
+  onConnectPartner: (partnerName: string, sidebarExpanded: boolean) => void
 }) {
   const { isMobile, open, openMobile } = useSidebar()
 
@@ -225,6 +227,9 @@ function SidebarAwareNetworkMap({
         onConnectProgram(programId, isMobile ? openMobile : open)
       }
       onSelectItem={(item) => onSelectItem(item, isMobile ? openMobile : open)}
+      onConnectPartner={(name) =>
+        onConnectPartner(name, isMobile ? openMobile : open)
+      }
     />
   )
 }
@@ -314,6 +319,7 @@ export default function NetworkExplorerPanel({
   >([])
   const [popupDismissRevision, setPopupDismissRevision] = useState(0)
   const [connectDrawerOpen, setConnectDrawerOpen] = useState(false)
+  const [partnerConnectionsOpen, setPartnerConnectionsOpen] = useState(false)
 
   function startConnectionFlow() {
     interruptTour()
@@ -330,6 +336,18 @@ export default function NetworkExplorerPanel({
     if (sidebarExpanded) setOpenSection("program")
     startConnectionFlow()
     setConnectDrawerOpen(true)
+  }
+  function connectPartnerFromMap(
+    partnerName: string,
+    sidebarExpanded: boolean
+  ) {
+    setSelectedPartnerName(partnerName)
+    setSelectedProgramId("")
+    setSelectionRevision((revision) => revision + 1)
+    setShowPartners(true)
+    if (sidebarExpanded) setOpenSection("partner")
+    startConnectionFlow()
+    setPartnerConnectionsOpen(true)
   }
   function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
     interruptTour()
@@ -556,6 +574,8 @@ export default function NetworkExplorerPanel({
                   partners={innovationPartners}
                   existingPartnerName={selectedPartnerName}
                   connectedAssetIds={selectedPartnerConnectedAssetIds}
+                  open={partnerConnectionsOpen}
+                  onOpenChange={setPartnerConnectionsOpen}
                   onStart={startConnectionFlow}
                   onSaved={setRecentConnections}
                   trigger={
@@ -805,6 +825,7 @@ export default function NetworkExplorerPanel({
         />
         <SidebarAwareNetworkMap
           onConnectProgram={connectFromMap}
+          onConnectPartner={connectPartnerFromMap}
           onSelectItem={selectFromMap}
           locations={locations}
           programConnections={programConnections}

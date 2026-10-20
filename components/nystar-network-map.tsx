@@ -29,6 +29,7 @@ export default function NystarNetworkMap({
   recentConnections,
   popupDismissRevision,
   onConnectProgram,
+  onConnectPartner,
   onSelectItem,
   activeTourRegion,
   tourExitRevision,
@@ -48,6 +49,7 @@ export default function NystarNetworkMap({
   recentConnections: RecentConnection[]
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
+  onConnectPartner?: (partnerName: string) => void
   onSelectItem?: (item: MapItemSelection) => void
   activeTourRegion: string | null
   tourExitRevision: number
@@ -69,6 +71,7 @@ export default function NystarNetworkMap({
       recentConnections={recentConnections}
       popupDismissRevision={popupDismissRevision}
       onConnectProgram={onConnectProgram}
+      onConnectPartner={onConnectPartner}
       onSelectItem={onSelectItem}
       activeTourRegion={activeTourRegion}
       tourExitRevision={tourExitRevision}
