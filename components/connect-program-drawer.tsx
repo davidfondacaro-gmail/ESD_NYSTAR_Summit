@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Info, Link, X } from "lucide-react"
+import { Info, Link } from "lucide-react"
 
 import InnovationPartnerPicker, {
   type PartnerRegionGroup,
@@ -318,7 +318,7 @@ export default function ConnectProgramDrawer({
       </DrawerTrigger>
       <DrawerContent style={{ width: SIDEBAR_WIDTH }}>
         <DrawerHeader className="relative px-6 pt-7 pb-5">
-          <DrawerTitle ref={titleRef} tabIndex={-1} className="pr-8">
+          <DrawerTitle ref={titleRef} tabIndex={-1}>
             {isReview
               ? "Review Connection"
               : isAddingPartner
@@ -331,19 +331,6 @@ export default function ConnectProgramDrawer({
           {!isReview && !isAddingPartner && sourceProgram && (
             <ProgramType category={sourceProgram.category} />
           )}
-          <DrawerClose
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute top-3 right-4"
-                aria-label="Close drawer"
-              />
-            }
-          >
-            <X aria-hidden="true" />
-          </DrawerClose>
         </DrawerHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <FieldGroup
