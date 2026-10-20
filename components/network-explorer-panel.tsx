@@ -7,6 +7,7 @@ import {
   ChevronRight,
   Circle,
   FileText,
+  Group,
   Info,
   Link,
   Star,
@@ -256,6 +257,7 @@ export default function NetworkExplorerPanel({
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
+  const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
@@ -270,6 +272,13 @@ export default function NetworkExplorerPanel({
   const [recentConnections, setRecentConnections] = useState<
     RecentConnection[]
   >([])
+  const [popupDismissRevision, setPopupDismissRevision] = useState(0)
+
+  function startConnectionFlow() {
+    setRecentConnections([])
+    setPopupDismissRevision((revision) => revision + 1)
+  }
+
   const [tourStarted, setTourStarted] = useState(false)
   const [selectedTourRegion, setSelectedTourRegion] = useState("all")
   const selectedProgram = programs.find(
@@ -332,7 +341,7 @@ export default function NetworkExplorerPanel({
                 regions={regions}
                 partners={innovationPartners}
                 partnerRegionGroups={partnerRegionGroups}
-                onStart={() => setRecentConnections([])}
+                onStart={startConnectionFlow}
                 onSaved={setRecentConnections}
               />
             )}
@@ -383,7 +392,7 @@ export default function NetworkExplorerPanel({
               categories={categories}
               regions={regions}
               partners={innovationPartners}
-              onStart={() => setRecentConnections([])}
+              onStart={startConnectionFlow}
               onSaved={setRecentConnections}
             />
           </ExplorerSection>
@@ -435,6 +444,19 @@ export default function NetworkExplorerPanel({
         </SidebarContent>
         <SidebarFooter className="items-end">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle marker clustering"
+                pressed={clusterMarkers}
+                onPressedChange={setClusterMarkers}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <Group aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle marker clustering</TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -547,9 +569,11 @@ export default function NetworkExplorerPanel({
           selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
+          clusterMarkers={clusterMarkers}
           showRegionLabels={showRegionLabels}
           showCityLabels={showCityLabels}
           recentConnections={recentConnections}
+          popupDismissRevision={popupDismissRevision}
         />
       </SidebarInset>
     </SidebarProvider>

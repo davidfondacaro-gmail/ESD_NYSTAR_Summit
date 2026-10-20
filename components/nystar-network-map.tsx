@@ -17,9 +17,11 @@ export default function NystarNetworkMap({
   selectionRevision,
   showZoomControls,
   showMapLegend,
+  clusterMarkers,
   showRegionLabels,
   showCityLabels,
   recentConnections,
+  popupDismissRevision,
 }: {
   locations: NystarLocationGroup[]
   selectedProgramId: string
@@ -27,9 +29,11 @@ export default function NystarNetworkMap({
   selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
+  clusterMarkers: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
   recentConnections: RecentConnection[]
+  popupDismissRevision: number
 }) {
   return (
     <LeafletMap
@@ -39,9 +43,11 @@ export default function NystarNetworkMap({
       selectionRevision={selectionRevision}
       showZoomControls={showZoomControls}
       showMapLegend={showMapLegend}
+      clusterMarkers={clusterMarkers}
       showRegionLabels={showRegionLabels}
       showCityLabels={showCityLabels}
       recentConnections={recentConnections}
+      popupDismissRevision={popupDismissRevision}
     />
   )
 }
