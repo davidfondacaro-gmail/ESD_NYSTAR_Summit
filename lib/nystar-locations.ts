@@ -108,7 +108,7 @@ type CustomerConnectionCsvRow = {
   "Customer ID": string
   "NYSTAR Asset ID": string
   "Connection Type": string
-  "Created At": string
+  "Added": string
 }
 
 type ProgramConnectionCsvRow = {
@@ -297,7 +297,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       assetName: asset.name,
       hostOrganization: asset.hostOrganization,
       connectionType,
-      createdAt: row["Created At"]?.trim() ?? "",
+      createdAt: row["Added"]?.trim() ?? "",
     })
     connectionsByCustomerId.set(customerId, customerConnections)
   }
