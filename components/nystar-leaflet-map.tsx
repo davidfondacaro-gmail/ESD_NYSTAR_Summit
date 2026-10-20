@@ -1,7 +1,7 @@
 "use client"
 
 import L from "leaflet"
-import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
+import { arrow, computePosition, offset, platform, shift, type Placement } from "@floating-ui/dom"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import MarkerClusterGroup from "react-leaflet-cluster"
@@ -24,10 +24,13 @@ import type {
   NystarProgramConnection,
 } from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
+import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
 const markerItemCounts = new WeakMap<L.Marker, number>()
+const connectionSegments = new WeakMap<L.Map, Map<L.Polyline, { from: L.LatLng; to: L.LatLng }>>()
+const CONNECTION_GEOMETRY_EVENT = "connectiongeometrychange"
 
 export type MapItemSelection =
   | { kind: "program"; id: string }
@@ -360,9 +363,26 @@ function PopupPlacement() {
   useEffect(() => {
     let activePopup: L.Popup | null = null
     let revision = 0
+    let placedTransform = ""
     const observer = new ResizeObserver(() => {
       void positionPopup()
     })
+    const positionObserver = new MutationObserver(() => {
+      if (activePopup?.getElement()?.style.transform !== placedTransform) {
+        void positionPopup()
+      }
+    })
+    const shell = map.getContainer().parentElement
+    const legendObserver = new ResizeObserver(() => { void positionPopup() })
+    function observeLegend() {
+      legendObserver.disconnect()
+      const legend = shell?.querySelector(".network-map-legend")
+      if (legend) legendObserver.observe(legend)
+      void positionPopup()
+    }
+    const shellObserver = new MutationObserver(observeLegend)
+    if (shell) shellObserver.observe(shell, { childList: true })
+    observeLegend()
 
     async function positionPopup() {
       const popup = activePopup
@@ -392,18 +412,83 @@ function PopupPlacement() {
           return new DOMRect(mapRect.left + point.x, mapRect.top + point.y, 0, 0)
         },
       }
-      const result = await computePosition(reference, element, {
-        placement: "top",
-        strategy: "absolute",
-        middleware: [
-          offset(20),
-          flip({ boundary: mapElement, padding: 12, fallbackPlacements: ["bottom", "left", "right"] }),
-          shift({ boundary: mapElement, padding: 12, crossAxis: true }),
-          arrow({ element: pointer, padding: 10 }),
-        ],
+      const mapRect = mapElement.getBoundingClientRect()
+      const legendRect = shell?.querySelector(".network-map-legend")?.getBoundingClientRect()
+      const segments = [...(connectionSegments.get(map)?.values() ?? [])].map(({ from, to }) => {
+        const a = map.latLngToContainerPoint(from)
+        const b = map.latLngToContainerPoint(to)
+        return {
+          from: { x: mapRect.left + a.x, y: mapRect.top + a.y },
+          to: { x: mapRect.left + b.x, y: mapRect.top + b.y },
+        }
       })
+      const placements: Placement[] = [
+        "top", "bottom", "left", "right",
+        "top-start", "top-end", "bottom-start", "bottom-end",
+        "left-start", "left-end", "right-start", "right-end",
+      ]
+      const candidates = await Promise.all(placements.map(async (placement) => {
+        const result = await computePosition(reference, element, {
+          placement,
+          strategy: "fixed",
+          // Leaflet transforms the popup pane; score candidates in viewport coordinates.
+          platform: { ...platform, getOffsetParent: () => window },
+          middleware: [
+            offset(20),
+            shift({ boundary: mapElement, padding: 12, crossAxis: true }),
+            {
+              name: "avoidLegend",
+              fn({ x, y, rects }) {
+                if (!legendRect) return {}
+                const width = rects.floating.width
+                const height = rects.floating.height
+                const rect = { left: x, top: y, right: x + width, bottom: y + height }
+                if (!overlapArea(rect, legendRect)) return {}
+                const options = [
+                  { x: legendRect.left - width - 8, y },
+                  { x: legendRect.right + 8, y },
+                  { x, y: legendRect.top - height - 8 },
+                  { x, y: legendRect.bottom + 8 },
+                ]
+                const valid = options.filter((point) =>
+                  point.x >= mapRect.left + 12 && point.x + width <= mapRect.right - 12 &&
+                  point.y >= mapRect.top + 12 && point.y + height <= mapRect.bottom - 12 &&
+                  (placement.startsWith("top") ? point.y + height <= rects.reference.y :
+                    placement.startsWith("bottom") ? point.y >= rects.reference.y :
+                    placement.startsWith("left") ? point.x + width <= rects.reference.x :
+                    point.x >= rects.reference.x)
+                ).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))
+                if (!valid.length) return {}
+                return valid[0]
+              },
+            },
+            arrow({ element: pointer, padding: 10 }),
+          ],
+        })
+        const { width, height } = element.getBoundingClientRect()
+        const rect = { left: result.x, top: result.y, right: result.x + width, bottom: result.y + height }
+        const anchorPoint = map.latLngToContainerPoint(location)
+        const anchorX = mapRect.left + anchorPoint.x
+        const anchorY = mapRect.top + anchorPoint.y
+        const side = result.placement.split("-")[0]
+        const sideOverflow = side === "top" ? rect.bottom - (anchorY - 16) :
+          side === "bottom" ? anchorY + 16 - rect.top :
+          side === "left" ? rect.right - (anchorX - 16) : anchorX + 16 - rect.left
+        return {
+          result,
+          legendOverlap: legendRect ? overlapArea(rect, legendRect) : 0,
+          sideOverflow: Math.max(0, sideOverflow),
+          lineOverlap: segments.reduce((sum, segment) => sum + coveredConnectionLength(rect, segment), 0),
+        }
+      }))
+      candidates.sort((a, b) => a.legendOverlap - b.legendOverlap ||
+        a.sideOverflow - b.sideOverflow || a.lineOverlap - b.lineOverlap)
+      const { result } = candidates[0]
       if (currentRevision !== revision || popup !== activePopup) return
-      L.DomUtil.setPosition(element, L.point(result.x, result.y))
+      L.DomUtil.setPosition(element, map.containerPointToLayerPoint(
+        L.point(result.x - mapRect.left, result.y - mapRect.top)
+      ))
+      placedTransform = element.style.transform
       const side = result.placement.split("-")[0]
       const oppositeSide = { top: "bottom", bottom: "top", left: "right", right: "left" }[side]!
       const arrowPosition = result.middlewareData.arrow
@@ -418,9 +503,14 @@ function PopupPlacement() {
 
     function onOpen(event: L.PopupEvent) {
       observer.disconnect()
+      positionObserver.disconnect()
       activePopup = event.popup
       const element = activePopup.getElement()
-      if (element) observer.observe(element)
+      placedTransform = ""
+      if (element) {
+        observer.observe(element)
+        positionObserver.observe(element, { attributes: true, attributeFilter: ["style"] })
+      }
       void positionPopup()
     }
 
@@ -429,6 +519,7 @@ function PopupPlacement() {
       activePopup = null
       revision += 1
       observer.disconnect()
+      positionObserver.disconnect()
     }
 
     function onMapChange() {
@@ -438,13 +529,18 @@ function PopupPlacement() {
     map.on("popupopen", onOpen)
     map.on("popupclose", onClose)
     map.on("move zoomend resize", onMapChange)
+    map.on(CONNECTION_GEOMETRY_EVENT, onMapChange)
     return () => {
       revision += 1
       activePopup = null
       observer.disconnect()
+      positionObserver.disconnect()
+      legendObserver.disconnect()
+      shellObserver.disconnect()
       map.off("popupopen", onOpen)
       map.off("popupclose", onClose)
       map.off("move zoomend resize", onMapChange)
+      map.off(CONNECTION_GEOMETRY_EVENT, onMapChange)
     }
   }, [map])
 
@@ -630,6 +726,12 @@ function ConnectionLines({
           : "network-connection-line",
       }).addTo(map)
     )
+    const segments = connectionSegments.get(map) ?? new Map()
+    connectionSegments.set(map, segments)
+    polylines.forEach((polyline, index) => {
+      segments.set(polyline, { from: currentLines[index].from, to: currentLines[index].to })
+    })
+    map.fire(CONNECTION_GEOMETRY_EVENT)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const start = performance.now()
     let frame = 0
@@ -656,6 +758,8 @@ function ConnectionLines({
     return () => {
       cancelAnimationFrame(frame)
       polylines.forEach((polyline) => polyline.remove())
+      polylines.forEach((polyline) => segments.delete(polyline))
+      map.fire(CONNECTION_GEOMETRY_EVENT)
     }
   }, [map, linesKey])
 
