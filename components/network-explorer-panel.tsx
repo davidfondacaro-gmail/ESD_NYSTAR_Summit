@@ -54,6 +54,7 @@ import {
 import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
+  NystarProgramConnection,
   NystarProgramGroup,
 } from "@/lib/nystar-locations"
 
@@ -212,11 +213,13 @@ function SidebarAwareNetworkMap({
 
 export default function NetworkExplorerPanel({
   locations,
+  programConnections,
   categories,
   regions,
   tourRegions,
 }: {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
   tourRegions: string[]
@@ -596,6 +599,7 @@ export default function NetworkExplorerPanel({
         <SidebarAwareNetworkMap
           onConnectProgram={connectFromMap}
           locations={locations}
+          programConnections={programConnections}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
           selectionRevision={selectionRevision}

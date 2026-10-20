@@ -2,7 +2,10 @@
 
 import dynamic from "next/dynamic"
 
-import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type {
+  NystarLocationGroup,
+  NystarProgramConnection,
+} from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 const LeafletMap = dynamic(() => import("./nystar-leaflet-map"), {
@@ -12,6 +15,7 @@ const LeafletMap = dynamic(() => import("./nystar-leaflet-map"), {
 
 export default function NystarNetworkMap({
   locations,
+  programConnections,
   selectedProgramId,
   selectedPartnerName,
   selectionRevision,
@@ -25,6 +29,7 @@ export default function NystarNetworkMap({
   onConnectProgram,
 }: {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   selectedProgramId: string
   selectedPartnerName: string
   selectionRevision: number
@@ -40,6 +45,7 @@ export default function NystarNetworkMap({
   return (
     <LeafletMap
       locations={locations}
+      programConnections={programConnections}
       selectedProgramId={selectedProgramId}
       selectedPartnerName={selectedPartnerName}
       selectionRevision={selectionRevision}

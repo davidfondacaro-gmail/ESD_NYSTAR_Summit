@@ -18,7 +18,10 @@ import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
 import { Link } from "lucide-react"
 import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
-import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type {
+  NystarLocationGroup,
+  NystarProgramConnection,
+} from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
@@ -483,7 +486,7 @@ function OpenSelectedMapSelectionPopup({
 const CONNECTION_LINE_PANE = "connection-lines"
 const CONNECTION_LINE_DURATION_MS = 1000
 
-function RecentConnectionLines({
+function ConnectionLines({
   connections,
   locations,
 }: {
@@ -499,12 +502,19 @@ function RecentConnectionLines({
       for (const asset of location.assets) assetPositions.set(asset.id, position)
       for (const customer of location.customers) partnerPositions.set(customer.id, position)
     }
+    const seen = new Set<string>()
     return connections.flatMap((connection) => {
-      const from = assetPositions.get(connection.fromAssetId)
-      const to = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
-      if (!from || !to) return []
+      const assetPosition = assetPositions.get(connection.fromAssetId)
+      const targetPosition = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
+      if (!assetPosition || !targetPosition) return []
+      const [from, to] = connection.animateFromTarget
+        ? [targetPosition, assetPosition]
+        : [assetPosition, targetPosition]
+      const key = `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}@${from.lat},${from.lng}>${to.lat},${to.lng}`
+      if (seen.has(key)) return []
+      seen.add(key)
       return [{
-        key: `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}`,
+        key,
         from,
         to,
         desired: connection.connectionType === "Desired",
@@ -567,6 +577,42 @@ function RecentConnectionLines({
   return null
 }
 
+function connectionsForPopup(
+  assetIds: Set<string>,
+  customerIds: Set<string>,
+  programConnections: NystarProgramConnection[],
+  locations: NystarLocationGroup[]
+): RecentConnection[] {
+  if (assetIds.size === 0 && customerIds.size === 0) return []
+  const connections: RecentConnection[] = []
+  for (const connection of programConnections) {
+    const [fromAssetId, toAssetId] = assetIds.has(connection.assetId1)
+      ? [connection.assetId1, connection.assetId2]
+      : [connection.assetId2, connection.assetId1]
+    if (!assetIds.has(fromAssetId)) continue
+    connections.push({
+      fromAssetId,
+      to: { kind: "asset", id: toAssetId },
+      connectionType: connection.connectionType,
+    })
+  }
+  for (const location of locations) {
+    for (const customer of location.customers) {
+      for (const connection of customer.connections) {
+        const fromAsset = assetIds.has(connection.assetId)
+        if (!fromAsset && !customerIds.has(customer.id)) continue
+        connections.push({
+          fromAssetId: connection.assetId,
+          to: { kind: "partner", id: customer.id },
+          connectionType: connection.connectionType,
+          animateFromTarget: !fromAsset,
+        })
+      }
+    }
+  }
+  return connections
+}
+
 function markerIcon(categories: string[], hasInnovationPartner: boolean) {
   const markerCategories = [...new Set(categories)]
   const stars = markerCategories
@@ -601,6 +647,7 @@ function markerIcon(categories: string[], hasInnovationPartner: boolean) {
 
 export default function NystarLeafletMap({
   locations: groupedLocations,
+  programConnections,
   selectedProgramId,
   selectedPartnerName,
   selectionRevision,
@@ -614,6 +661,7 @@ export default function NystarLeafletMap({
   onConnectProgram,
 }: {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   selectedProgramId: string
   selectedPartnerName: string
   selectionRevision: number
@@ -665,6 +713,29 @@ export default function NystarLeafletMap({
     : showFullLocation
     ? locations.find((location) => locationKey(location) === mapPopupRequest.locationKey)
     : sidebarLocation
+  const popupAssetIds = new Set(
+    (popupLocation?.assets ?? [])
+      .filter((asset) => showFullLocation || asset.id === selectedProgramId)
+      .map((asset) => asset.id)
+  )
+  const popupCustomerIds = new Set(
+    (popupLocation?.customers ?? [])
+      .filter((customer) =>
+        showFullLocation || (!selectedProgramId && customer.name === selectedPartnerName)
+      )
+      .map((customer) => customer.id)
+  )
+  const popupAssetKey = [...popupAssetIds].sort().join("|")
+  const popupCustomerKey = [...popupCustomerIds].sort().join("|")
+  const popupConnections = useMemo(
+    () => connectionsForPopup(
+      new Set(popupAssetKey ? popupAssetKey.split("|") : []),
+      new Set(popupCustomerKey ? popupCustomerKey.split("|") : []),
+      programConnections,
+      groupedLocations
+    ),
+    [popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
+  )
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -859,7 +930,11 @@ export default function NystarLeafletMap({
           {markers}
         </MarkerClusterGroup>
       ) : markers}
-      <RecentConnectionLines
+      <ConnectionLines
+        connections={popupConnections}
+        locations={locations}
+      />
+      <ConnectionLines
         connections={recentConnections}
         locations={locations}
       />

@@ -262,7 +262,7 @@ export default function ConnectProgramDrawer({
       setIsSaving(false)
       setOpen(false)
       resetForm()
-      if (isPartnerConnection) router.refresh()
+      router.refresh()
     } catch (error) {
       setSaveError(
         error instanceof Error
