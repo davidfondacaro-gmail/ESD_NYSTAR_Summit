@@ -28,6 +28,10 @@ const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
 const markerItemCounts = new WeakMap<L.Marker, number>()
 
+export type MapItemSelection =
+  | { kind: "program"; id: string }
+  | { kind: "partner"; name: string }
+
 type MapPopupRequest = {
   locationKey: string
   selectionRevision: number
@@ -665,6 +669,7 @@ export default function NystarLeafletMap({
   recentConnections,
   popupDismissRevision,
   onConnectProgram,
+  onSelectItem,
 }: {
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
@@ -679,6 +684,7 @@ export default function NystarLeafletMap({
   recentConnections: RecentConnection[]
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
+  onSelectItem?: (item: MapItemSelection) => void
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
@@ -769,10 +775,18 @@ export default function NystarLeafletMap({
       <Marker
         key={`${location.latitude}-${location.longitude}`}
         eventHandlers={{
-          click: () => setMapPopupRequest({
-            locationKey: locationKey(location),
-            selectionRevision,
-          }),
+          click: () => {
+            setMapPopupRequest({
+              locationKey: locationKey(location),
+              selectionRevision,
+            })
+            // Markers that group several items (clustering on) keep the full-location popup.
+            if (location.assets.length + location.customers.length !== 1) return
+            const [asset] = location.assets
+            const partnerName = location.customers[0]?.name.trim()
+            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
+            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
+          },
         }}
         ref={(marker) => {
           const key = locationKey(location)

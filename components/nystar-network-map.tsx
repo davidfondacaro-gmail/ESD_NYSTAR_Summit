@@ -8,6 +8,8 @@ import type {
 } from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
 
+import type { MapItemSelection } from "./nystar-leaflet-map"
+
 const LeafletMap = dynamic(() => import("./nystar-leaflet-map"), {
   ssr: false,
   loading: () => <div className="network-map-loading" aria-hidden="true" />,
@@ -27,6 +29,7 @@ export default function NystarNetworkMap({
   recentConnections,
   popupDismissRevision,
   onConnectProgram,
+  onSelectItem,
 }: {
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
@@ -41,6 +44,7 @@ export default function NystarNetworkMap({
   recentConnections: RecentConnection[]
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
+  onSelectItem?: (item: MapItemSelection) => void
 }) {
   return (
     <LeafletMap
@@ -57,6 +61,7 @@ export default function NystarNetworkMap({
       recentConnections={recentConnections}
       popupDismissRevision={popupDismissRevision}
       onConnectProgram={onConnectProgram}
+      onSelectItem={onSelectItem}
     />
   )
 }

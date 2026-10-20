@@ -21,6 +21,7 @@ import ConnectProgramDrawer from "@/components/connect-program-drawer"
 import ExplorerListbox from "@/components/explorer-listbox"
 import InnovationPartnerPicker from "@/components/innovation-partner-picker"
 import NystarProgramPicker from "@/components/nystar-program-picker"
+import type { MapItemSelection } from "@/components/nystar-leaflet-map"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
 import { Button } from "@/components/ui/button"
@@ -191,9 +192,14 @@ function CollapsedExplorerNavigation({
 
 function SidebarAwareNetworkMap({
   onConnectProgram,
+  onSelectItem,
   ...props
-}: Omit<React.ComponentProps<typeof NystarNetworkMap>, "onConnectProgram"> & {
+}: Omit<
+  React.ComponentProps<typeof NystarNetworkMap>,
+  "onConnectProgram" | "onSelectItem"
+> & {
   onConnectProgram: (programId: string, sidebarExpanded: boolean) => void
+  onSelectItem: (item: MapItemSelection, sidebarExpanded: boolean) => void
 }) {
   const { isMobile, open, openMobile } = useSidebar()
 
@@ -203,6 +209,7 @@ function SidebarAwareNetworkMap({
       onConnectProgram={(programId) =>
         onConnectProgram(programId, isMobile ? openMobile : open)
       }
+      onSelectItem={(item) => onSelectItem(item, isMobile ? openMobile : open)}
     />
   )
 }
@@ -306,6 +313,19 @@ export default function NetworkExplorerPanel({
     if (sidebarExpanded) setOpenSection("program")
     startConnectionFlow()
     setConnectDrawerOpen(true)
+  }
+  function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
+    if (item.kind === "program") {
+      setSelectedProgramId(item.id)
+      setSelectedPartnerName("")
+    } else {
+      setSelectedPartnerName(item.name)
+      setSelectedProgramId("")
+    }
+    setSelectionRevision((revision) => revision + 1)
+    if (sidebarExpanded) {
+      selectSection(item.kind === "program" ? "program" : "partner")
+    }
   }
   const [tourStarted, setTourStarted] = useState(false)
   const [selectedTourRegion, setSelectedTourRegion] = useState("all")
@@ -626,6 +646,7 @@ export default function NetworkExplorerPanel({
         />
         <SidebarAwareNetworkMap
           onConnectProgram={connectFromMap}
+          onSelectItem={selectFromMap}
           locations={locations}
           programConnections={programConnections}
           selectedProgramId={selectedProgramId}

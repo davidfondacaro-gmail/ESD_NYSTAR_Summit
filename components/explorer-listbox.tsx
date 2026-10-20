@@ -29,6 +29,11 @@ export default function ExplorerListbox({
   const [activeValue, setActiveValue] = useState(
     value || options[0]?.value || ""
   )
+  const [syncedValue, setSyncedValue] = useState(value)
+  if (value !== syncedValue) {
+    setSyncedValue(value)
+    if (value) setActiveValue(value)
+  }
   const activeIndex = options.findIndex(
     (option) => option.value === activeValue
   )
