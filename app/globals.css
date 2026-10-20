@@ -567,6 +567,8 @@ body {
   border-radius: 4px;
   background: var(--network-popup-bg);
   color: var(--network-ink);
+  box-shadow: 0 0 0 1px rgb(128 128 128 / 25%),
+    0 3px 10px rgb(0 0 0 / 14%);
 }
 
 .leaflet-container .leaflet-popup-tip {
