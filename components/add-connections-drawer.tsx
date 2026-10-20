@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/tooltip"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 import { normalizeOrganizationName } from "@/lib/organization-name"
+import { cn } from "@/lib/utils"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 type GroupingMode = "type" | "region"
@@ -107,6 +108,7 @@ export default function AddConnectionsDrawer({
   const [openCategories, setOpenCategories] = useState<Set<string>>(
     () => new Set()
   )
+  const [skippedConnections, setSkippedConnections] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [hasSubmitted, setHasSubmitted] = useState(false)
   const [formError, setFormError] = useState("")
@@ -126,6 +128,7 @@ export default function AddConnectionsDrawer({
     setSelectedPrograms(new Set())
     setConnectionTypes(new Map())
     setOpenCategories(new Set())
+    setSkippedConnections(false)
     setIsSubmitting(false)
     setHasSubmitted(false)
     setFormError("")
@@ -152,7 +155,10 @@ export default function AddConnectionsDrawer({
       if (organizationNameTaken) return
       setStep(2)
     } else if (step === 2) {
+      setSkippedConnections(false)
       setStep(3)
+    } else if (skippedConnections) {
+      void submitConnection()
     } else {
       touchFollowupField("followupEmail")
       touchFollowupField("followupPhone")
@@ -178,11 +184,15 @@ export default function AddConnectionsDrawer({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...(existingPartnerName ? { existingPartnerName } : details),
-          ...(hasDesiredConnection ? followupDetails : {}),
-          connections: [...selectedPrograms].map((assetId) => ({
-            assetId,
-            connectionType: connectionTypes.get(assetId),
-          })),
+          ...(hasDesiredConnection && !skippedConnections
+            ? followupDetails
+            : {}),
+          connections: skippedConnections
+            ? []
+            : [...selectedPrograms].map((assetId) => ({
+                assetId,
+                connectionType: connectionTypes.get(assetId),
+              })),
         }),
       })
       const result = (await response.json()) as {
@@ -195,7 +205,7 @@ export default function AddConnectionsDrawer({
       }
 
       const customerId = result.customerId
-      if (customerId) {
+      if (customerId && !skippedConnections) {
         onSaved?.(
           [...selectedPrograms].flatMap((assetId) => {
             const connectionType = connectionTypes.get(assetId)
@@ -212,7 +222,12 @@ export default function AddConnectionsDrawer({
           })
         )
       }
-      toast.add({ title: "Connection added, thanks!", type: "success" })
+      toast.add({
+        title: skippedConnections
+          ? "Company added, thanks!"
+          : "Connection added, thanks!",
+        type: "success",
+      })
 
       setHasSubmitted(true)
       setFormMessage(
@@ -352,9 +367,27 @@ export default function AddConnectionsDrawer({
               : step === 2
                 ? existingPartnerName
                   ? "Select NYSTAR locations."
-                  : "Select NYSTAR locations."
-                : "Review and add follow-up contact details."}
+                  : "Add NYSTAR Connections"
+                : skippedConnections
+                  ? "Review"
+                  : "Review and add follow-up contact details."}
           </DrawerDescription>
+          {step === 2 && !existingPartnerName && (
+            <Button
+              type="button"
+              variant="brand-link"
+              size="inline"
+              className="mt-1 gap-1.5 self-start"
+              onClick={() => {
+                setSkippedConnections(true)
+                setStep(3)
+              }}
+              disabled={isSubmitting || hasSubmitted}
+            >
+              Skip this step
+              <ChevronRight data-icon="inline-end" />
+            </Button>
+          )}
           <DrawerClose
             render={
               <Button
@@ -513,7 +546,12 @@ export default function AddConnectionsDrawer({
               </FieldGroup>
             ) : (
               <FieldGroup className="gap-5">
-                <section className="flex flex-col gap-1 border-b border-border pb-4">
+                <section
+                  className={cn(
+                    "flex flex-col gap-1",
+                    !skippedConnections && "border-b border-border pb-4"
+                  )}
+                >
                   <FieldTitle className="drawer-review-heading">
                     Organization
                   </FieldTitle>
@@ -530,63 +568,65 @@ export default function AddConnectionsDrawer({
                   )}
                 </section>
 
-                <FieldGroup className="gap-2">
-                  <div className="flex items-baseline gap-2">
-                    <FieldTitle className="drawer-review-heading">
-                      Selected connections
-                    </FieldTitle>
-                    <span className="drawer-review-copy">
-                      ({selectedProgramDetails.length})
-                    </span>
-                  </div>
-                  <ol className="list-decimal pl-6 marker:text-muted-foreground">
-                    {selectedProgramDetails.map((program) => (
-                      <li key={program.id} className="pl-1">
-                        <Field className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
-                          <FieldContent>
-                            <FieldLabel className="drawer-field-label">
-                              {program.name}
-                            </FieldLabel>
-                            {program.details && (
-                              <FieldDescription className="drawer-review-copy">
-                                {program.details}
-                              </FieldDescription>
-                            )}
-                          </FieldContent>
-                          <ToggleGroup
-                            aria-label={`Connection type for ${program.name}`}
-                            value={
-                              connectionTypes.has(program.id)
-                                ? [connectionTypes.get(program.id)!]
-                                : []
-                            }
-                            onValueChange={(value) =>
-                              setConnectionType(program.id, value)
-                            }
-                            variant="outline"
-                            size="sm"
-                            spacing={0}
-                          >
-                            <ToggleGroupItem
-                              className="drawer-review-control"
-                              value="Existing"
+                {!skippedConnections && (
+                  <FieldGroup className="gap-2">
+                    <div className="flex items-baseline gap-2">
+                      <FieldTitle className="drawer-review-heading">
+                        Selected connections
+                      </FieldTitle>
+                      <span className="drawer-review-copy">
+                        ({selectedProgramDetails.length})
+                      </span>
+                    </div>
+                    <ol className="list-decimal pl-6 marker:text-muted-foreground">
+                      {selectedProgramDetails.map((program) => (
+                        <li key={program.id} className="pl-1">
+                          <Field className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
+                            <FieldContent>
+                              <FieldLabel className="drawer-field-label">
+                                {program.name}
+                              </FieldLabel>
+                              {program.details && (
+                                <FieldDescription className="drawer-review-copy">
+                                  {program.details}
+                                </FieldDescription>
+                              )}
+                            </FieldContent>
+                            <ToggleGroup
+                              aria-label={`Connection type for ${program.name}`}
+                              value={
+                                connectionTypes.has(program.id)
+                                  ? [connectionTypes.get(program.id)!]
+                                  : []
+                              }
+                              onValueChange={(value) =>
+                                setConnectionType(program.id, value)
+                              }
+                              variant="outline"
+                              size="sm"
+                              spacing={0}
                             >
-                              Existing
-                            </ToggleGroupItem>
-                            <ToggleGroupItem
-                              className="drawer-review-control"
-                              value="Desired"
-                            >
-                              Desired
-                            </ToggleGroupItem>
-                          </ToggleGroup>
-                        </Field>
-                      </li>
-                    ))}
-                  </ol>
-                </FieldGroup>
+                              <ToggleGroupItem
+                                className="drawer-review-control"
+                                value="Existing"
+                              >
+                                Existing
+                              </ToggleGroupItem>
+                              <ToggleGroupItem
+                                className="drawer-review-control"
+                                value="Desired"
+                              >
+                                Desired
+                              </ToggleGroupItem>
+                            </ToggleGroup>
+                          </Field>
+                        </li>
+                      ))}
+                    </ol>
+                  </FieldGroup>
+                )}
 
-                {hasDesiredConnection && (
+                {hasDesiredConnection && !skippedConnections && (
                   <FieldGroup className="gap-4 border-t border-border pt-4">
                     <div>
                       <FieldTitle className="drawer-review-heading">
@@ -792,9 +832,21 @@ export default function AddConnectionsDrawer({
                   variant="brand"
                   size="lg"
                   className="min-w-24"
-                  disabled={!canSubmit || isSubmitting || hasSubmitted}
+                  disabled={
+                    (!skippedConnections && !canSubmit) ||
+                    isSubmitting ||
+                    hasSubmitted
+                  }
                 >
-                  {isSubmitting ? "Saving…" : hasSubmitted ? "Added" : "Submit"}
+                  {isSubmitting
+                    ? "Saving…"
+                    : hasSubmitted
+                      ? skippedConnections
+                        ? "Saved"
+                        : "Added"
+                      : skippedConnections
+                        ? "Save"
+                        : "Submit"}
                 </Button>
               </>
             )}

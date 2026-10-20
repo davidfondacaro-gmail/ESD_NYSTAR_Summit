@@ -207,15 +207,16 @@ async function appendCustomerAndConnections(
     const customerAppend = getAppendText(customerCsv, customerHeaders, [
       customerValues,
     ])
-    const connectionsAppend = getAppendText(
-      connectionsCsv,
-      connectionHeaders,
-      connectionValues
-    )
+    const connectionsAppend =
+      connectionValues.length > 0
+        ? getAppendText(connectionsCsv, connectionHeaders, connectionValues)
+        : ""
 
     try {
       await appendFile(customerCsvPath, customerAppend, "utf8")
-      await appendFile(connectionsCsvPath, connectionsAppend, "utf8")
+      if (connectionsAppend) {
+        await appendFile(connectionsCsvPath, connectionsAppend, "utf8")
+      }
     } catch (error) {
       await Promise.all([
         writeFile(customerCsvPath, customerCsv, "utf8"),
@@ -272,7 +273,10 @@ export async function POST(request: Request) {
     }
   }
 
-  if (!Array.isArray(body.connections) || body.connections.length === 0) {
+  if (
+    !Array.isArray(body.connections) ||
+    (existingPartnerName && body.connections.length === 0)
+  ) {
     return errorResponse("Select at least one NYSTAR location.", 400)
   }
 
