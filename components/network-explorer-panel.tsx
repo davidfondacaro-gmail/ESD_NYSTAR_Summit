@@ -9,7 +9,7 @@ import {
   FileText,
   Group,
   Info,
-  Link,
+  Plus,
   Star,
   Tag,
   ZoomIn,
@@ -58,7 +58,7 @@ import type {
   NystarProgramGroup,
 } from "@/lib/nystar-locations"
 
-type ExplorerSectionId = "program" | "partner" | "connections" | "tour"
+type ExplorerSectionId = "program" | "partner" | "tour"
 
 function ExplorerSection({
   headingId,
@@ -144,18 +144,13 @@ function CollapsedExplorerNavigation({
   const items = [
     {
       id: "program",
-      label: "Find a NYSTAR Program",
+      label: "NYSTAR Programs",
       icon: Star,
     },
     {
       id: "partner",
-      label: "Find an Innovation Partner",
+      label: "NYSTAR Innovation Partners",
       icon: Circle,
-    },
-    {
-      id: "connections",
-      label: "Add a Program, Partner, or Connections",
-      icon: Link,
     },
     {
       id: "tour",
@@ -343,7 +338,7 @@ export default function NetworkExplorerPanel({
           <ExplorerSection
             headingId="find-program-heading"
             icon={<Star aria-hidden="true" className="shrink-0" />}
-            title="Find a NYSTAR Program"
+            title="NYSTAR Programs"
             open={openSection === "program"}
             onOpenChange={(open) => setOpenSection(open ? "program" : null)}
           >
@@ -390,7 +385,7 @@ export default function NetworkExplorerPanel({
             <ExplorerSection
               headingId="find-partner-heading"
               icon={<Circle aria-hidden="true" className="shrink-0" />}
-              title="Find an Innovation Partner"
+              title="NYSTAR Innovation Partners"
               open={openSection === "partner"}
               onOpenChange={(open) => selectSection(open ? "partner" : null)}
             >
@@ -412,24 +407,26 @@ export default function NetworkExplorerPanel({
                   setSelectionRevision((revision) => revision + 1)
                 }}
               />
+              <AddConnectionsDrawer
+                categories={categories}
+                regions={regions}
+                partners={innovationPartners}
+                onStart={startConnectionFlow}
+                onSaved={setRecentConnections}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="brand-link"
+                    size="inline"
+                    className="gap-1.5 self-start"
+                  >
+                    <Plus data-icon="inline-start" />
+                    Add Your Company
+                  </Button>
+                }
+              />
             </ExplorerSection>
           )}
-
-          <ExplorerSection
-            headingId="add-connections-heading"
-            icon={<Link aria-hidden="true" className="shrink-0" />}
-            title="Add a Program, Partner, or Connections"
-            open={openSection === "connections"}
-            onOpenChange={(open) => setOpenSection(open ? "connections" : null)}
-          >
-            <AddConnectionsDrawer
-              categories={categories}
-              regions={regions}
-              partners={innovationPartners}
-              onStart={startConnectionFlow}
-              onSaved={setRecentConnections}
-            />
-          </ExplorerSection>
 
           {showTour && (
             <ExplorerSection

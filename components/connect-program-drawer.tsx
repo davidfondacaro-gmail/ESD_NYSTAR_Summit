@@ -304,7 +304,14 @@ export default function ConnectProgramDrawer({
   return (
     <Drawer swipeDirection="right" open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger
-        render={<Button type="button" variant="brand" size="lg" />}
+        render={
+          <Button
+            type="button"
+            variant="brand-link"
+            size="inline"
+            className="gap-1.5 self-start"
+          />
+        }
       >
         <Link data-icon="inline-start" />
         Connect With This Program

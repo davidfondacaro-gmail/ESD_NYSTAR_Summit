@@ -68,12 +68,14 @@ export default function AddConnectionsDrawer({
   partners,
   onStart,
   onSaved,
+  trigger,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
   partners: string[]
   onStart?: () => void
   onSaved?: (connections: RecentConnection[]) => void
+  trigger?: React.ReactElement
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -307,24 +309,28 @@ export default function AddConnectionsDrawer({
       }}
       swipeDirection="right"
     >
-      <DrawerTrigger
-        render={
-          <Button
-            variant="brand"
-            size="lg"
-            className="network-add-trigger w-full justify-between"
-          />
-        }
-      >
-        Add Your Connections
-        <Plus aria-hidden="true" data-icon="inline-end" />
-      </DrawerTrigger>
+      {trigger ? (
+        <DrawerTrigger render={trigger} />
+      ) : (
+        <DrawerTrigger
+          render={
+            <Button
+              variant="brand"
+              size="lg"
+              className="network-add-trigger w-full justify-between"
+            />
+          }
+        >
+          Add Your Connections
+          <Plus aria-hidden="true" data-icon="inline-end" />
+        </DrawerTrigger>
+      )}
       <DrawerContent className="w-[min(30rem,92vw)]">
         <DrawerHeader className="relative px-6 pt-7 pb-5">
-          <DrawerTitle className="text-lg">Add Your Connections</DrawerTitle>
+          <DrawerTitle className="text-lg">Add Your Company</DrawerTitle>
           <DrawerDescription>
             {step === 1
-              ? "Step 1 of 3 · Enter the organization and its address."
+              ? "Step 1 of 3 · Enter your company and its address."
               : step === 2
                 ? "Step 2 of 3 · Select NYSTAR locations."
                 : "Step 3 of 3 · Review and add follow-up contact details."}
@@ -424,11 +430,7 @@ export default function AddConnectionsDrawer({
                                 className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
                                 data-icon="inline-start"
                               />
-                              <span>
-                                {groupingMode === "region"
-                                  ? `- ${group.name}`
-                                  : group.name}
-                              </span>
+                              <span>{group.name}</span>
                               <span className="ml-auto shrink-0 text-xs text-muted-foreground">
                                 {group.programs.length}
                               </span>
@@ -554,8 +556,7 @@ export default function AddConnectionsDrawer({
                         Follow-up contact
                       </FieldTitle>
                       <FieldDescription className="drawer-review-copy">
-                        Shared for all connections marked Desired. All fields
-                        are optional.
+                        All fields are optional.
                       </FieldDescription>
                     </div>
                     <Field>
