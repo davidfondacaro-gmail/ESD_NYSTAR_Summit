@@ -6,10 +6,13 @@ import {
   ArrowRight,
   ChevronRight,
   Circle,
+  Diamond,
   FileText,
+  Group,
   Info,
   Link,
-  Star,
+  Plus,
+  Table2,
   Tag,
   ZoomIn,
 } from "lucide-react"
@@ -19,6 +22,7 @@ import ConnectProgramDrawer from "@/components/connect-program-drawer"
 import ExplorerListbox from "@/components/explorer-listbox"
 import InnovationPartnerPicker from "@/components/innovation-partner-picker"
 import NystarProgramPicker from "@/components/nystar-program-picker"
+import type { MapItemSelection } from "@/components/nystar-leaflet-map"
 import NystarNetworkMap from "@/components/nystar-network-map"
 import ThemeToggleButton from "@/components/theme-toggle-button"
 import { Button } from "@/components/ui/button"
@@ -26,6 +30,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
@@ -50,13 +55,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { DATA_TABLES, type DataTableId } from "@/lib/data-tables"
 import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
+  NystarProgramConnection,
   NystarProgramGroup,
 } from "@/lib/nystar-locations"
 
-type ExplorerSectionId = "program" | "partner" | "connections" | "tour"
+type ExplorerSectionId = "program" | "partner" | "tour"
 
 function ExplorerSection({
   headingId,
@@ -142,18 +149,13 @@ function CollapsedExplorerNavigation({
   const items = [
     {
       id: "program",
-      label: "Find a NYSTAR Program",
-      icon: Star,
+      label: "NYSTAR Programs",
+      icon: Diamond,
     },
     {
       id: "partner",
-      label: "Find an Innovation Partner",
+      label: "NYSTAR Innovation Partners",
       icon: Circle,
-    },
-    {
-      id: "connections",
-      label: "Add a Program, Partner, or Connections",
-      icon: Link,
     },
     {
       id: "tour",
@@ -191,13 +193,39 @@ function CollapsedExplorerNavigation({
   )
 }
 
+function SidebarAwareNetworkMap({
+  onConnectProgram,
+  onSelectItem,
+  ...props
+}: Omit<
+  React.ComponentProps<typeof NystarNetworkMap>,
+  "onConnectProgram" | "onSelectItem"
+> & {
+  onConnectProgram: (programId: string, sidebarExpanded: boolean) => void
+  onSelectItem: (item: MapItemSelection, sidebarExpanded: boolean) => void
+}) {
+  const { isMobile, open, openMobile } = useSidebar()
+
+  return (
+    <NystarNetworkMap
+      {...props}
+      onConnectProgram={(programId) =>
+        onConnectProgram(programId, isMobile ? openMobile : open)
+      }
+      onSelectItem={(item) => onSelectItem(item, isMobile ? openMobile : open)}
+    />
+  )
+}
+
 export default function NetworkExplorerPanel({
   locations,
+  programConnections,
   categories,
   regions,
   tourRegions,
 }: {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
   tourRegions: string[]
@@ -256,6 +284,7 @@ export default function NetworkExplorerPanel({
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
+  const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
@@ -270,10 +299,48 @@ export default function NetworkExplorerPanel({
   const [recentConnections, setRecentConnections] = useState<
     RecentConnection[]
   >([])
+  const [popupDismissRevision, setPopupDismissRevision] = useState(0)
+  const [connectDrawerOpen, setConnectDrawerOpen] = useState(false)
+
+  function startConnectionFlow() {
+    setRecentConnections([])
+    setPopupDismissRevision((revision) => revision + 1)
+  }
+
+  function connectFromMap(programId: string, sidebarExpanded: boolean) {
+    if (programId !== selectedProgramId) {
+      setSelectedProgramId(programId)
+      setSelectedPartnerName("")
+      setSelectionRevision((revision) => revision + 1)
+    }
+    if (sidebarExpanded) setOpenSection("program")
+    startConnectionFlow()
+    setConnectDrawerOpen(true)
+  }
+  function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
+    if (item.kind === "program") {
+      setSelectedProgramId(item.id)
+      setSelectedPartnerName("")
+    } else {
+      setSelectedPartnerName(item.name)
+      setSelectedProgramId("")
+    }
+    setSelectionRevision((revision) => revision + 1)
+    if (sidebarExpanded) {
+      selectSection(item.kind === "program" ? "program" : "partner")
+    }
+  }
   const [tourStarted, setTourStarted] = useState(false)
   const [selectedTourRegion, setSelectedTourRegion] = useState("all")
   const selectedProgram = programs.find(
     (program) => program.id === selectedProgramId
+  )
+  const selectedPartnerConnectedAssetIds = locations.flatMap((location) =>
+    location.customers
+      .filter((customer) => customer.name.trim() === selectedPartnerName)
+      .flatMap((customer) =>
+        customer.connections.map((connection) => connection.assetId)
+      )
   )
   const selectedProgramIsMapped = locations.some((location) =>
     location.assets.some((asset) => asset.id === selectedProgramId)
@@ -301,8 +368,8 @@ export default function NetworkExplorerPanel({
           />
           <ExplorerSection
             headingId="find-program-heading"
-            icon={<Star aria-hidden="true" className="shrink-0" />}
-            title="Find a NYSTAR Program"
+            icon={<Diamond aria-hidden="true" className="shrink-0" />}
+            title="NYSTAR Programs"
             open={openSection === "program"}
             onOpenChange={(open) => setOpenSection(open ? "program" : null)}
           >
@@ -332,8 +399,10 @@ export default function NetworkExplorerPanel({
                 regions={regions}
                 partners={innovationPartners}
                 partnerRegionGroups={partnerRegionGroups}
-                onStart={() => setRecentConnections([])}
+                onStart={startConnectionFlow}
                 onSaved={setRecentConnections}
+                open={connectDrawerOpen}
+                onOpenChange={setConnectDrawerOpen}
               />
             )}
             {selectedProgram && !selectedProgramIsMapped && (
@@ -347,7 +416,7 @@ export default function NetworkExplorerPanel({
             <ExplorerSection
               headingId="find-partner-heading"
               icon={<Circle aria-hidden="true" className="shrink-0" />}
-              title="Find an Innovation Partner"
+              title="NYSTAR Innovation Partners"
               open={openSection === "partner"}
               onOpenChange={(open) => selectSection(open ? "partner" : null)}
             >
@@ -369,24 +438,49 @@ export default function NetworkExplorerPanel({
                   setSelectionRevision((revision) => revision + 1)
                 }}
               />
+              <AddConnectionsDrawer
+                categories={categories}
+                regions={regions}
+                partners={innovationPartners}
+                onStart={startConnectionFlow}
+                onSaved={setRecentConnections}
+                trigger={
+                  <Button
+                    type="button"
+                    variant="brand-link"
+                    size="inline"
+                    className="gap-1.5 self-start"
+                  >
+                    <Plus data-icon="inline-start" />
+                    Add Your Company
+                  </Button>
+                }
+              />
+              {selectedPartnerName && (
+                <AddConnectionsDrawer
+                  key={selectedPartnerName}
+                  categories={categories}
+                  regions={regions}
+                  partners={innovationPartners}
+                  existingPartnerName={selectedPartnerName}
+                  connectedAssetIds={selectedPartnerConnectedAssetIds}
+                  onStart={startConnectionFlow}
+                  onSaved={setRecentConnections}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="brand-link"
+                      size="inline"
+                      className="shrink items-start gap-1.5 self-start text-left whitespace-normal [&_svg]:mt-0.5"
+                    >
+                      <Link data-icon="inline-start" />
+                      Add NYSTAR Connections for {selectedPartnerName}
+                    </Button>
+                  }
+                />
+              )}
             </ExplorerSection>
           )}
-
-          <ExplorerSection
-            headingId="add-connections-heading"
-            icon={<Link aria-hidden="true" className="shrink-0" />}
-            title="Add a Program, Partner, or Connections"
-            open={openSection === "connections"}
-            onOpenChange={(open) => setOpenSection(open ? "connections" : null)}
-          >
-            <AddConnectionsDrawer
-              categories={categories}
-              regions={regions}
-              partners={innovationPartners}
-              onStart={() => setRecentConnections([])}
-              onSaved={setRecentConnections}
-            />
-          </ExplorerSection>
 
           {showTour && (
             <ExplorerSection
@@ -435,6 +529,19 @@ export default function NetworkExplorerPanel({
         </SidebarContent>
         <SidebarFooter className="items-end">
           <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
+            <Tooltip>
+              <Toggle
+                aria-label="Toggle marker clustering"
+                pressed={clusterMarkers}
+                onPressedChange={setClusterMarkers}
+                variant="default"
+                size="sm"
+                render={<TooltipTrigger />}
+              >
+                <Group aria-hidden="true" />
+              </Toggle>
+              <TooltipContent>Toggle marker clustering</TooltipContent>
+            </Tooltip>
             <DropdownMenu>
               <DropdownMenuTrigger
                 render={
@@ -531,6 +638,37 @@ export default function NetworkExplorerPanel({
               </Toggle>
               <TooltipContent>Toggle tour</TooltipContent>
             </Tooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="View data tables"
+                    title="View data tables"
+                  />
+                }
+              >
+                <Table2 aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-72">
+                {(Object.keys(DATA_TABLES) as DataTableId[]).map((id) => (
+                  <DropdownMenuItem
+                    key={id}
+                    render={
+                      <a
+                        href={`/data/${id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                  >
+                    View {DATA_TABLES[id].title}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ThemeToggleButton />
           </div>
         </SidebarFooter>
@@ -540,16 +678,21 @@ export default function NetworkExplorerPanel({
           className="network-map-sidebar-trigger md:hidden"
           title="Toggle sidebar"
         />
-        <NystarNetworkMap
+        <SidebarAwareNetworkMap
+          onConnectProgram={connectFromMap}
+          onSelectItem={selectFromMap}
           locations={locations}
+          programConnections={programConnections}
           selectedProgramId={selectedProgramId}
           selectedPartnerName={selectedPartnerName}
           selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
+          clusterMarkers={clusterMarkers}
           showRegionLabels={showRegionLabels}
           showCityLabels={showCityLabels}
           recentConnections={recentConnections}
+          popupDismissRevision={popupDismissRevision}
         />
       </SidebarInset>
     </SidebarProvider>

@@ -50,6 +50,13 @@ export type NystarLocationGroup = {
   customers: NystarCustomerLocation[]
 }
 
+export type NystarProgramConnection = {
+  id: string
+  assetId1: string
+  assetId2: string
+  connectionType: NystarConnectionType
+}
+
 export type NystarProgramOption = {
   id: string
   name: string
@@ -64,6 +71,7 @@ export type NystarProgramGroup = {
 
 export type NystarNetworkData = {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
   tourRegions: string[]
@@ -100,24 +108,34 @@ type CustomerConnectionCsvRow = {
   "Customer ID": string
   "NYSTAR Asset ID": string
   "Connection Type": string
-  "Created At": string
+  "Added": string
+}
+
+type ProgramConnectionCsvRow = {
+  "Connection ID": string
+  "NYSTAR Asset ID 1": string
+  "NYSTAR Asset ID 2": string
+  "Connection Type": string
 }
 
 export async function getNystarNetworkData(): Promise<NystarNetworkData> {
   const dataDirectory = join(process.cwd(), "public", "data")
-  const [nystarCsv, customerCsv, connectionsCsv, mepRegionsJson] =
-    await Promise.all([
-      readFile(
-        join(
-          dataDirectory,
-          "nystar-innovation-assets-map-base-layer-lgw.csv"
-        ),
-        "utf8"
-      ),
-      readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
-      readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
-      readFile(join(dataDirectory, "ny_mep_regions.geojson"), "utf8"),
-    ])
+  const [
+    nystarCsv,
+    customerCsv,
+    connectionsCsv,
+    programConnectionsCsv,
+    mepRegionsJson,
+  ] = await Promise.all([
+    readFile(
+      join(dataDirectory, "nystar-innovation-assets-map-base-layer-lgw.csv"),
+      "utf8"
+    ),
+    readFile(join(dataDirectory, "customer-locations.csv"), "utf8"),
+    readFile(join(dataDirectory, "nystar-customer-connections.csv"), "utf8"),
+    readFile(join(dataDirectory, "nystar-nystar-connections.csv"), "utf8"),
+    readFile(join(dataDirectory, "ny_mep_regions.geojson"), "utf8"),
+  ])
   const mepRegions = JSON.parse(mepRegionsJson) as {
     features?: { properties?: { region_name?: string } }[]
   }
@@ -138,6 +156,13 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
   })
   const { data: connectionRows } = Papa.parse<CustomerConnectionCsvRow>(
     connectionsCsv,
+    {
+      header: true,
+      skipEmptyLines: true,
+    }
+  )
+  const { data: programConnectionRows } = Papa.parse<ProgramConnectionCsvRow>(
+    programConnectionsCsv,
     {
       header: true,
       skipEmptyLines: true,
@@ -272,7 +297,7 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
       assetName: asset.name,
       hostOrganization: asset.hostOrganization,
       connectionType,
-      createdAt: row["Created At"]?.trim() ?? "",
+      createdAt: row["Added"]?.trim() ?? "",
     })
     connectionsByCustomerId.set(customerId, customerConnections)
   }
@@ -332,8 +357,29 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
     })
   }
 
+  const programConnections: NystarProgramConnection[] = []
+
+  for (const row of programConnectionRows) {
+    const id = row["Connection ID"]?.trim()
+    const assetId1 = row["NYSTAR Asset ID 1"]?.trim()
+    const assetId2 = row["NYSTAR Asset ID 2"]?.trim()
+    const connectionType = row["Connection Type"]?.trim()
+
+    if (
+      !id ||
+      !assetsById.has(assetId1) ||
+      !assetsById.has(assetId2) ||
+      (connectionType !== "Existing" && connectionType !== "Desired")
+    ) {
+      continue
+    }
+
+    programConnections.push({ id, assetId1, assetId2, connectionType })
+  }
+
   return {
     locations: [...groups.values()],
+    programConnections,
     tourRegions,
     categories: [...categoryPrograms.entries()]
       .map(([name, programs]) => ({ name, programs }))

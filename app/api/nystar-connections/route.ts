@@ -22,7 +22,7 @@ const connectionHeaders = [
   "NYSTAR Program Name",
   "NYSTAR Host Organization",
   "Connection Type",
-  "Created At",
+  "Added",
   "Followup Name",
   "Followup Email",
   "Followup Phone",

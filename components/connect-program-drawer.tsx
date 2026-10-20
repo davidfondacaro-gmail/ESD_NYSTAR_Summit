@@ -83,6 +83,8 @@ export default function ConnectProgramDrawer({
   partnerRegionGroups,
   onStart,
   onSaved,
+  open: openProp,
+  onOpenChange,
 }: {
   programId: string
   programName: string
@@ -92,10 +94,17 @@ export default function ConnectProgramDrawer({
   partnerRegionGroups: PartnerRegionGroup[]
   onStart?: () => void
   onSaved?: (connections: RecentConnection[]) => void
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const id = useId()
   const router = useRouter()
-  const [open, setOpen] = useState(false)
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false)
+  const open = openProp ?? uncontrolledOpen
+  function setOpen(nextOpen: boolean) {
+    setUncontrolledOpen(nextOpen)
+    onOpenChange?.(nextOpen)
+  }
   const [connectionType, setConnectionType] = useState("")
   const [targetProgramId, setTargetProgramId] = useState("")
   const [targetPartnerName, setTargetPartnerName] = useState("")
@@ -253,7 +262,7 @@ export default function ConnectProgramDrawer({
       setIsSaving(false)
       setOpen(false)
       resetForm()
-      if (isPartnerConnection) router.refresh()
+      router.refresh()
     } catch (error) {
       setSaveError(
         error instanceof Error
@@ -295,7 +304,14 @@ export default function ConnectProgramDrawer({
   return (
     <Drawer swipeDirection="right" open={open} onOpenChange={handleOpenChange}>
       <DrawerTrigger
-        render={<Button type="button" variant="brand" size="lg" />}
+        render={
+          <Button
+            type="button"
+            variant="brand-link"
+            size="inline"
+            className="gap-1.5 self-start"
+          />
+        }
       >
         <Link data-icon="inline-start" />
         Connect With This Program

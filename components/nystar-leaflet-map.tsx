@@ -15,22 +15,33 @@ import {
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
+import { Button } from "@/components/ui/button"
+import { Link } from "lucide-react"
 import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
-import type { NystarLocationGroup } from "@/lib/nystar-locations"
+import type {
+  NystarLocationGroup,
+  NystarProgramConnection,
+} from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.25
 const markerItemCounts = new WeakMap<L.Marker, number>()
 
+export type MapItemSelection =
+  | { kind: "program"; id: string }
+  | { kind: "partner"; name: string }
+
 type MapPopupRequest = {
   locationKey: string
   selectionRevision: number
 }
 
-function numberedMarkerIcon(count: number) {
+function numberedMarkerIcon(count: number, selected = false) {
   return L.divIcon({
-    className: "nystar-cluster-marker",
+    className: selected
+      ? "nystar-cluster-marker nystar-marker--selected"
+      : "nystar-cluster-marker",
     html: `<span class="nystar-cluster-marker__count" aria-label="${count} network items">${count}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -386,18 +397,47 @@ function locationKey(location: NystarLocationGroup) {
   return `${location.latitude}-${location.longitude}`
 }
 
+const SPREAD_SPACING_PX = 24
+const SPREAD_MIN_RADIUS_PX = 16
+
+// Programs are placed at ZIP centroids, so several can share a point. Give each its own
+// marker on a small ring around that point, sized for the default zoom.
+function spreadCoLocatedItems(locations: NystarLocationGroup[]): NystarLocationGroup[] {
+  const lngPerPx = 360 / (256 * 2 ** DEFAULT_MAP_ZOOM)
+  return locations.flatMap((location) => {
+    const items = [
+      ...location.assets.map((asset) => ({ assets: [asset], customers: [] })),
+      ...location.customers.map((customer) => ({ assets: [], customers: [customer] })),
+    ]
+    if (items.length < 2) return [location]
+    const radius = Math.max(SPREAD_MIN_RADIUS_PX, (items.length * SPREAD_SPACING_PX) / (2 * Math.PI))
+    const latPerPx = lngPerPx * Math.cos((location.latitude * Math.PI) / 180)
+    return items.map((item, index) => {
+      const angle = -Math.PI / 2 + (2 * Math.PI * index) / items.length
+      return {
+        ...location,
+        ...item,
+        latitude: location.latitude - radius * Math.sin(angle) * latPerPx,
+        longitude: location.longitude + radius * Math.cos(angle) * lngPerPx,
+      }
+    })
+  })
+}
+
 function OpenSelectedMapSelectionPopup({
   popupLocation,
   markerRefs,
   clusterRef,
   selectionRevision,
   mapPopupRequest,
+  clusterMarkers,
 }: {
   popupLocation: NystarLocationGroup | undefined
   markerRefs: RefObject<Map<string, L.Marker>>
   clusterRef: RefObject<L.MarkerClusterGroup | null>
   selectionRevision: number
   mapPopupRequest: MapPopupRequest | null
+  clusterMarkers: boolean
 }) {
   const map = useMap()
 
@@ -414,8 +454,13 @@ function OpenSelectedMapSelectionPopup({
     function revealMarker() {
       if (cancelled) return
       marker = markerRefs.current.get(locationKey(popupLocation!))
+      if (!marker) return
+      if (!clusterMarkers) {
+        openPopup()
+        return
+      }
       group = clusterRef.current
-      if (!marker || !group || !group.hasLayer(marker)) return
+      if (!group || !group.hasLayer(marker)) return
       if (mapPopupRequest?.selectionRevision === selectionRevision) {
         openPopup()
         return
@@ -439,7 +484,7 @@ function OpenSelectedMapSelectionPopup({
       window.clearTimeout(registration)
       group?.off("spiderfied", openPopup)
     }
-  }, [clusterRef, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
+  }, [clusterRef, clusterMarkers, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
 
   return null
 }
@@ -447,7 +492,7 @@ function OpenSelectedMapSelectionPopup({
 const CONNECTION_LINE_PANE = "connection-lines"
 const CONNECTION_LINE_DURATION_MS = 1000
 
-function RecentConnectionLines({
+function ConnectionLines({
   connections,
   locations,
 }: {
@@ -463,12 +508,19 @@ function RecentConnectionLines({
       for (const asset of location.assets) assetPositions.set(asset.id, position)
       for (const customer of location.customers) partnerPositions.set(customer.id, position)
     }
+    const seen = new Set<string>()
     return connections.flatMap((connection) => {
-      const from = assetPositions.get(connection.fromAssetId)
-      const to = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
-      if (!from || !to) return []
+      const assetPosition = assetPositions.get(connection.fromAssetId)
+      const targetPosition = (connection.to.kind === "asset" ? assetPositions : partnerPositions).get(connection.to.id)
+      if (!assetPosition || !targetPosition) return []
+      const [from, to] = connection.animateFromTarget
+        ? [targetPosition, assetPosition]
+        : [assetPosition, targetPosition]
+      const key = `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}@${from.lat},${from.lng}>${to.lat},${to.lng}`
+      if (seen.has(key)) return []
+      seen.add(key)
       return [{
-        key: `${connection.fromAssetId}>${connection.to.kind}:${connection.to.id}:${connection.connectionType}`,
+        key,
         from,
         to,
         desired: connection.connectionType === "Desired",
@@ -531,7 +583,47 @@ function RecentConnectionLines({
   return null
 }
 
-function markerIcon(categories: string[], hasInnovationPartner: boolean) {
+function connectionsForPopup(
+  assetIds: Set<string>,
+  customerIds: Set<string>,
+  programConnections: NystarProgramConnection[],
+  locations: NystarLocationGroup[]
+): RecentConnection[] {
+  if (assetIds.size === 0 && customerIds.size === 0) return []
+  const connections: RecentConnection[] = []
+  for (const connection of programConnections) {
+    const [fromAssetId, toAssetId] = assetIds.has(connection.assetId1)
+      ? [connection.assetId1, connection.assetId2]
+      : [connection.assetId2, connection.assetId1]
+    if (!assetIds.has(fromAssetId)) continue
+    connections.push({
+      fromAssetId,
+      to: { kind: "asset", id: toAssetId },
+      connectionType: connection.connectionType,
+    })
+  }
+  for (const location of locations) {
+    for (const customer of location.customers) {
+      for (const connection of customer.connections) {
+        const fromAsset = assetIds.has(connection.assetId)
+        if (!fromAsset && !customerIds.has(customer.id)) continue
+        connections.push({
+          fromAssetId: connection.assetId,
+          to: { kind: "partner", id: customer.id },
+          connectionType: connection.connectionType,
+          animateFromTarget: !fromAsset,
+        })
+      }
+    }
+  }
+  return connections
+}
+
+function markerIcon(
+  categories: string[],
+  hasInnovationPartner: boolean,
+  selected = false
+) {
   const markerCategories = [...new Set(categories)]
   const stars = markerCategories
     .map((category) => {
@@ -555,7 +647,7 @@ function markerIcon(categories: string[], hasInnovationPartner: boolean) {
   const starContent = stars ? `<span class="${starsClass}">${stars}</span>` : ""
 
   return L.divIcon({
-    className: "nystar-marker",
+    className: selected ? "nystar-marker nystar-marker--selected" : "nystar-marker",
     html: `<span class="nystar-marker__symbols">${starContent}${customerDot}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -564,29 +656,61 @@ function markerIcon(categories: string[], hasInnovationPartner: boolean) {
 }
 
 export default function NystarLeafletMap({
-  locations,
+  locations: groupedLocations,
+  programConnections,
   selectedProgramId,
   selectedPartnerName,
   selectionRevision,
   showZoomControls,
   showMapLegend,
+  clusterMarkers,
   showRegionLabels,
   showCityLabels,
   recentConnections,
+  popupDismissRevision,
+  onConnectProgram,
+  onSelectItem,
 }: {
   locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   selectedProgramId: string
   selectedPartnerName: string
   selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
+  clusterMarkers: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
   recentConnections: RecentConnection[]
+  popupDismissRevision: number
+  onConnectProgram?: (programId: string) => void
+  onSelectItem?: (item: MapItemSelection) => void
 }) {
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
+  const locations = useMemo(
+    () => (clusterMarkers ? groupedLocations : spreadCoLocatedItems(groupedLocations)),
+    [clusterMarkers, groupedLocations]
+  )
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
+  const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
+  const [popupDismissal, setPopupDismissal] = useState<{
+    selectionRevision: number
+    mapPopupRequest: MapPopupRequest | null
+  } | null>(null)
+  if (popupDismissRevision !== handledDismissRevision) {
+    setHandledDismissRevision(popupDismissRevision)
+    setPopupDismissal({ selectionRevision, mapPopupRequest })
+  }
+  // Popups stay dismissed until a new sidebar selection or marker click.
+  const popupsDismissed =
+    popupDismissal?.selectionRevision === selectionRevision &&
+    popupDismissal.mapPopupRequest === mapPopupRequest
+  useEffect(() => {
+    if (!popupDismissRevision) return
+    const group = clusterRef.current as (L.MarkerClusterGroup & { unspiderfy?: () => void }) | null
+    group?.unspiderfy?.()
+  }, [popupDismissRevision])
   const showFullLocation = mapPopupRequest?.selectionRevision === selectionRevision
   const sidebarLocation = locations.find((location) =>
     selectedProgramId
@@ -596,9 +720,35 @@ export default function NystarLeafletMap({
   const selectedCustomerId = sidebarLocation?.customers.find(
     (customer) => customer.name === selectedPartnerName
   )?.id
-  const popupLocation = showFullLocation
+  const popupLocation = popupsDismissed
+    ? undefined
+    : showFullLocation
     ? locations.find((location) => locationKey(location) === mapPopupRequest.locationKey)
     : sidebarLocation
+  const selectedLocationKey = popupLocation ? locationKey(popupLocation) : ""
+  const popupAssetIds = new Set(
+    (popupLocation?.assets ?? [])
+      .filter((asset) => showFullLocation || asset.id === selectedProgramId)
+      .map((asset) => asset.id)
+  )
+  const popupCustomerIds = new Set(
+    (popupLocation?.customers ?? [])
+      .filter((customer) =>
+        showFullLocation || (!selectedProgramId && customer.name === selectedPartnerName)
+      )
+      .map((customer) => customer.id)
+  )
+  const popupAssetKey = [...popupAssetIds].sort().join("|")
+  const popupCustomerKey = [...popupCustomerIds].sort().join("|")
+  const popupConnections = useMemo(
+    () => connectionsForPopup(
+      new Set(popupAssetKey ? popupAssetKey.split("|") : []),
+      new Set(popupCustomerKey ? popupCustomerKey.split("|") : []),
+      programConnections,
+      groupedLocations
+    ),
+    [popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
+  )
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
     for (const location of locations) {
@@ -612,6 +762,152 @@ export default function NystarLeafletMap({
   const mapCategories = Array.from(
     new Set(locations.flatMap((location) => location.assets.map((asset) => asset.category)))
   ).sort((left, right) => left.localeCompare(right))
+  const markers = locations.map((location) => {
+    const selectedOnly = !showFullLocation && location === sidebarLocation
+    const assets = selectedOnly
+      ? location.assets.filter((asset) => asset.id === selectedProgramId)
+      : location.assets
+    const customers = selectedOnly
+      ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
+      : location.customers
+    const selected = locationKey(location) === selectedLocationKey
+    return (
+      <Marker
+        key={`${location.latitude}-${location.longitude}`}
+        eventHandlers={{
+          click: () => {
+            setMapPopupRequest({
+              locationKey: locationKey(location),
+              selectionRevision,
+            })
+            // Markers that group several items (clustering on) keep the full-location popup.
+            if (location.assets.length + location.customers.length !== 1) return
+            const [asset] = location.assets
+            const partnerName = location.customers[0]?.name.trim()
+            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
+            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
+          },
+        }}
+        ref={(marker) => {
+          const key = locationKey(location)
+          if (marker) {
+            markerItemCounts.set(marker, location.assets.length + location.customers.length)
+            markerRefs.current.set(key, marker)
+          }
+          else markerRefs.current.delete(key)
+        }}
+        position={markerPositions.get(locationKey(location))!}
+        zIndexOffset={selected ? 1000 : 0}
+        icon={location.assets.length + location.customers.length > 1
+          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
+          : markerIcon(
+          location.assets.map((asset) => asset.category),
+          location.customers.length > 0,
+          selected
+        )}
+      >
+        <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
+          <div className="network-popup">
+            <ul className="network-popup__assets">
+              {assets.map((asset) => (
+                <li
+                  className="network-popup__asset"
+                  key={`${asset.name}-${asset.hostOrganization}`}
+                >
+                  <strong className="network-popup__name">
+                    {asset.name}
+                  </strong>
+                  <div className="network-popup__category-row">
+                    <span
+                      className="network-popup__diamond"
+                      style={{
+                        "--marker-color":
+                          CATEGORY_COLORS[asset.category] ??
+                          "var(--network-customer-marker)",
+                      } as React.CSSProperties}
+                      aria-hidden="true"
+                    />
+                    <span className="network-popup__primary">
+                      {asset.category}
+                    </span>
+                  </div>
+                  {asset.hostOrganization && (
+                    <span className="network-popup__category">
+                      {asset.hostOrganization}
+                    </span>
+                  )}
+                  <span className="network-popup__category">
+                    {[
+                      asset.addressLine1,
+                      asset.addressLine2,
+                      [asset.city, asset.state, asset.zipCode]
+                        .filter(Boolean)
+                        .join(", "),
+                    ]
+                      .filter(Boolean)
+                      .join(", ")}
+                  </span>
+                  {onConnectProgram && (
+                    <div className="network-popup__footer">
+                      <Button
+                        type="button"
+                        variant="brand-link"
+                        size="inline"
+                        className="gap-1.5 text-xs [&_svg:not([class*='size-'])]:size-3.5"
+                        onClick={() => onConnectProgram(asset.id)}
+                      >
+                        <Link data-icon="inline-start" />
+                        Connect with this program
+                      </Button>
+                    </div>
+                  )}
+                </li>
+              ))}
+              {customers.map((customer) => (
+                <li
+                  className="network-popup__customer"
+                  key={customer.id}
+                >
+                  <strong className="network-popup__name">
+                    {customer.name}
+                  </strong>
+                  <div className="network-popup__category-row">
+                    <span className="network-popup__dot" aria-hidden="true" />
+                    <span className="network-popup__primary">
+                      NYSTAR Innovation Partner
+                    </span>
+                  </div>
+                  {(customer.addressLine1 || customer.addressLine2) && (
+                    <span className="network-popup__category">
+                      {[customer.addressLine1, customer.addressLine2]
+                        .filter(Boolean)
+                        .join(", ")}
+                    </span>
+                  )}
+                  <span className="network-popup__category">
+                    {[
+                      customer.city,
+                      [customer.state, customer.zipCode].filter(Boolean).join(" "),
+                    ].filter(Boolean).join(", ")}
+                  </span>
+                  {customer.connections.map((connection) => (
+                    <span
+                      className="network-popup__category"
+                      key={connection.id}
+                    >
+                      {connection.connectionType}: {connection.assetName}
+                      {connection.hostOrganization &&
+                        ` · ${connection.hostOrganization}`}
+                    </span>
+                  ))}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Popup>
+      </Marker>
+    )
+  })
   return (
     <div className="network-map-shell">
       <MapContainer
@@ -642,140 +938,27 @@ export default function NystarLeafletMap({
         clusterRef={clusterRef}
         selectionRevision={selectionRevision}
         mapPopupRequest={mapPopupRequest}
+        clusterMarkers={clusterMarkers}
       />
-      <MarkerClusterGroup
-        ref={clusterRef}
-        maxClusterRadius={40}
-        iconCreateFunction={clusterIcon}
-        showCoverageOnHover={false}
-        zoomToBoundsOnClick={false}
-        spiderfyOnEveryZoom
-        animate={false}
-        spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
-      >
-      {locations.map((location) => {
-        const selectedOnly = !showFullLocation && location === sidebarLocation
-        const assets = selectedOnly
-          ? location.assets.filter((asset) => asset.id === selectedProgramId)
-          : location.assets
-        const customers = selectedOnly
-          ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
-          : location.customers
-        return (
-          <Marker
-            key={`${location.latitude}-${location.longitude}`}
-            eventHandlers={{
-              click: () => setMapPopupRequest({
-                locationKey: locationKey(location),
-                selectionRevision,
-              }),
-            }}
-            ref={(marker) => {
-              const key = locationKey(location)
-              if (marker) {
-                markerItemCounts.set(marker, location.assets.length + location.customers.length)
-                markerRefs.current.set(key, marker)
-              }
-              else markerRefs.current.delete(key)
-            }}
-            position={markerPositions.get(locationKey(location))!}
-            icon={location.assets.length + location.customers.length > 1
-              ? numberedMarkerIcon(location.assets.length + location.customers.length)
-              : markerIcon(
-              location.assets.map((asset) => asset.category),
-              location.customers.length > 0
-            )}
-          >
-            <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
-              <div className="network-popup">
-                <ul className="network-popup__assets">
-                  {assets.map((asset) => (
-                    <li
-                      className="network-popup__asset"
-                      key={`${asset.name}-${asset.hostOrganization}`}
-                    >
-                      <strong className="network-popup__name">
-                        {asset.name}
-                      </strong>
-                      <div className="network-popup__category-row">
-                        <span
-                          className="network-popup__diamond"
-                          style={{
-                            "--marker-color":
-                              CATEGORY_COLORS[asset.category] ??
-                              "var(--network-customer-marker)",
-                          } as React.CSSProperties}
-                          aria-hidden="true"
-                        />
-                        <span className="network-popup__primary">
-                          {asset.category}
-                        </span>
-                      </div>
-                      {asset.hostOrganization && (
-                        <span className="network-popup__category">
-                          {asset.hostOrganization}
-                        </span>
-                      )}
-                      <span className="network-popup__category">
-                        {[
-                          asset.addressLine1,
-                          asset.addressLine2,
-                          [asset.city, asset.state, asset.zipCode]
-                            .filter(Boolean)
-                            .join(", "),
-                        ]
-                          .filter(Boolean)
-                          .join(", ")}
-                      </span>
-                    </li>
-                  ))}
-                  {customers.map((customer) => (
-                    <li
-                      className="network-popup__customer"
-                      key={customer.id}
-                    >
-                      <strong className="network-popup__name">
-                        {customer.name}
-                      </strong>
-                      <div className="network-popup__category-row">
-                        <span className="network-popup__dot" aria-hidden="true" />
-                        <span className="network-popup__primary">
-                          NYSTAR Innovation Partner
-                        </span>
-                      </div>
-                      {(customer.addressLine1 || customer.addressLine2) && (
-                        <span className="network-popup__category">
-                          {[customer.addressLine1, customer.addressLine2]
-                            .filter(Boolean)
-                            .join(", ")}
-                        </span>
-                      )}
-                      <span className="network-popup__category">
-                        {[
-                          customer.city,
-                          [customer.state, customer.zipCode].filter(Boolean).join(" "),
-                        ].filter(Boolean).join(", ")}
-                      </span>
-                      {customer.connections.map((connection) => (
-                        <span
-                          className="network-popup__category"
-                          key={connection.id}
-                        >
-                          {connection.connectionType}: {connection.assetName}
-                          {connection.hostOrganization &&
-                            ` · ${connection.hostOrganization}`}
-                        </span>
-                      ))}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            </Popup>
-          </Marker>
-        )
-      })}
-      </MarkerClusterGroup>
-      <RecentConnectionLines
+      {clusterMarkers ? (
+        <MarkerClusterGroup
+          ref={clusterRef}
+          maxClusterRadius={40}
+          iconCreateFunction={clusterIcon}
+          showCoverageOnHover={false}
+          zoomToBoundsOnClick={false}
+          spiderfyOnEveryZoom
+          animate={false}
+          spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
+        >
+          {markers}
+        </MarkerClusterGroup>
+      ) : markers}
+      <ConnectionLines
+        connections={popupConnections}
+        locations={locations}
+      />
+      <ConnectionLines
         connections={recentConnections}
         locations={locations}
       />
