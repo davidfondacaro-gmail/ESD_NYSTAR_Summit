@@ -12,6 +12,7 @@ import {
   Link,
   Plus,
   Star,
+  Table2,
   Tag,
   ZoomIn,
 } from "lucide-react"
@@ -29,6 +30,7 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
@@ -53,6 +55,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip"
+import { DATA_TABLES, type DataTableId } from "@/lib/data-tables"
 import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
@@ -635,6 +638,37 @@ export default function NetworkExplorerPanel({
               </Toggle>
               <TooltipContent>Toggle tour</TooltipContent>
             </Tooltip>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label="View data tables"
+                    title="View data tables"
+                  />
+                }
+              >
+                <Table2 aria-hidden="true" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" side="top" className="w-72">
+                {(Object.keys(DATA_TABLES) as DataTableId[]).map((id) => (
+                  <DropdownMenuItem
+                    key={id}
+                    render={
+                      <a
+                        href={`/data/${id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      />
+                    }
+                  >
+                    View {DATA_TABLES[id].title}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
             <ThemeToggleButton />
           </div>
         </SidebarFooter>
