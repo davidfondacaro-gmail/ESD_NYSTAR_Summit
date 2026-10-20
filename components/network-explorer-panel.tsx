@@ -462,9 +462,12 @@ export default function NetworkExplorerPanel({
     <SidebarProvider className="network-screen">
       <Sidebar collapsible="icon">
         <SidebarHeader className="flex-row items-start justify-between gap-2 px-4 pt-5 pb-3">
-          <h1 className="network-sidebar__title group-data-[collapsible=icon]:hidden">
-            The NYSTAR Innovation Network
-          </h1>
+          <div className="flex min-w-0 flex-col gap-1 group-data-[collapsible=icon]:hidden">
+            <h1 className="network-sidebar__title">Making Connections Map</h1>
+            <p className="text-sm text-muted-foreground">
+              The NYSTSAR Innovation Network
+            </p>
+          </div>
           <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
         </SidebarHeader>
         <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
