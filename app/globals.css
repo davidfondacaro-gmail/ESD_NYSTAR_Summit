@@ -113,6 +113,7 @@
   --network-map-border: rgb(70 94 99 / 30%);
   --network-map-shadow: 0 4px 14px rgb(31 52 56 / 16%);
   --network-customer-marker: #58737a;
+  --network-marker-selected: #23383d;
   --network-control-bg: #ffffff;
   --network-control-ink: #23383d;
   --network-control-border: #cbd8d7;
@@ -164,6 +165,7 @@
   --network-map-border: rgb(130 148 162 / 30%);
   --network-map-shadow: 0 4px 14px rgb(0 0 0 / 22%);
   --network-customer-marker: #c3d1da;
+  --network-marker-selected: #ffffff;
   --network-control-bg: #142b3b;
   --network-control-ink: #dce6ed;
   --network-control-border: #35546b;
@@ -334,6 +336,15 @@ body {
   font-weight: 650;
   font-variant-numeric: tabular-nums;
   line-height: 1;
+}
+
+.nystar-marker--selected .nystar-marker__symbols,
+.nystar-marker--selected .nystar-cluster-marker__count {
+  filter: drop-shadow(0 0 1px var(--network-marker-selected))
+    drop-shadow(0 0 1px var(--network-marker-selected))
+    drop-shadow(
+      0 0 6px color-mix(in oklab, var(--network-marker-selected) 70%, transparent)
+    );
 }
 
 .nystar-marker__symbols {

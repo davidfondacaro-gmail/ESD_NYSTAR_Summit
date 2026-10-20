@@ -33,9 +33,11 @@ type MapPopupRequest = {
   selectionRevision: number
 }
 
-function numberedMarkerIcon(count: number) {
+function numberedMarkerIcon(count: number, selected = false) {
   return L.divIcon({
-    className: "nystar-cluster-marker",
+    className: selected
+      ? "nystar-cluster-marker nystar-marker--selected"
+      : "nystar-cluster-marker",
     html: `<span class="nystar-cluster-marker__count" aria-label="${count} network items">${count}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -613,7 +615,11 @@ function connectionsForPopup(
   return connections
 }
 
-function markerIcon(categories: string[], hasInnovationPartner: boolean) {
+function markerIcon(
+  categories: string[],
+  hasInnovationPartner: boolean,
+  selected = false
+) {
   const markerCategories = [...new Set(categories)]
   const stars = markerCategories
     .map((category) => {
@@ -637,7 +643,7 @@ function markerIcon(categories: string[], hasInnovationPartner: boolean) {
   const starContent = stars ? `<span class="${starsClass}">${stars}</span>` : ""
 
   return L.divIcon({
-    className: "nystar-marker",
+    className: selected ? "nystar-marker nystar-marker--selected" : "nystar-marker",
     html: `<span class="nystar-marker__symbols">${starContent}${customerDot}</span>`,
     iconSize: [32, 32],
     iconAnchor: [16, 16],
@@ -713,6 +719,7 @@ export default function NystarLeafletMap({
     : showFullLocation
     ? locations.find((location) => locationKey(location) === mapPopupRequest.locationKey)
     : sidebarLocation
+  const selectedLocationKey = popupLocation ? locationKey(popupLocation) : ""
   const popupAssetIds = new Set(
     (popupLocation?.assets ?? [])
       .filter((asset) => showFullLocation || asset.id === selectedProgramId)
@@ -757,6 +764,7 @@ export default function NystarLeafletMap({
     const customers = selectedOnly
       ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
       : location.customers
+    const selected = locationKey(location) === selectedLocationKey
     return (
       <Marker
         key={`${location.latitude}-${location.longitude}`}
@@ -775,11 +783,13 @@ export default function NystarLeafletMap({
           else markerRefs.current.delete(key)
         }}
         position={markerPositions.get(locationKey(location))!}
+        zIndexOffset={selected ? 1000 : 0}
         icon={location.assets.length + location.customers.length > 1
-          ? numberedMarkerIcon(location.assets.length + location.customers.length)
+          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
           : markerIcon(
           location.assets.map((asset) => asset.category),
-          location.customers.length > 0
+          location.customers.length > 0,
+          selected
         )}
       >
         <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
