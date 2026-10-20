@@ -69,6 +69,8 @@ export default function AddConnectionsDrawer({
   onStart,
   onSaved,
   trigger,
+  existingPartnerName,
+  connectedAssetIds,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
@@ -76,10 +78,13 @@ export default function AddConnectionsDrawer({
   onStart?: () => void
   onSaved?: (connections: RecentConnection[]) => void
   trigger?: React.ReactElement
+  existingPartnerName?: string
+  connectedAssetIds?: string[]
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [step, setStep] = useState<1 | 2 | 3>(1)
+  const firstStep = existingPartnerName ? 2 : 1
+  const [step, setStep] = useState<1 | 2 | 3>(firstStep)
   const [groupingMode, setGroupingMode] = useState<GroupingMode>("type")
   const [details, setDetails] = useState<OrganizationDetails>(
     emptyOrganizationDetails
@@ -108,7 +113,7 @@ export default function AddConnectionsDrawer({
   const [formMessage, setFormMessage] = useState("")
 
   function resetForm() {
-    setStep(1)
+    setStep(firstStep)
     setGroupingMode("type")
     setDetails(emptyOrganizationDetails)
     setFollowupDetails({
@@ -172,7 +177,7 @@ export default function AddConnectionsDrawer({
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...details,
+          ...(existingPartnerName ? { existingPartnerName } : details),
           ...(hasDesiredConnection ? followupDetails : {}),
           connections: [...selectedPrograms].map((assetId) => ({
             assetId,
@@ -200,6 +205,7 @@ export default function AddConnectionsDrawer({
                     fromAssetId: assetId,
                     to: { kind: "partner" as const, id: customerId },
                     connectionType,
+                    animateFromTarget: Boolean(existingPartnerName),
                   },
                 ]
               : []
@@ -209,7 +215,11 @@ export default function AddConnectionsDrawer({
       toast.add({ title: "Connection added, thanks!", type: "success" })
 
       setHasSubmitted(true)
-      setFormMessage(`${details.organizationName} was added to the network.`)
+      setFormMessage(
+        existingPartnerName
+          ? `NYSTAR connections were added for ${existingPartnerName}.`
+          : `${details.organizationName} was added to the network.`
+      )
       router.refresh()
     } catch (error) {
       setFormError(
@@ -283,6 +293,9 @@ export default function AddConnectionsDrawer({
     !followupPhonePattern.test(followupDetails.followupPhone.trim())
       ? "Enter a valid phone number, with an optional 1 or +1 country code."
       : ""
+  const connectedAssetIdSet = new Set(connectedAssetIds)
+  const totalSteps = existingPartnerName ? 2 : 3
+  const stepNumber = step - firstStep + 1
   const selectedProgramDetails = categories
     .flatMap((group) => group.programs)
     .filter((program) => selectedPrograms.has(program.id))
@@ -327,13 +340,20 @@ export default function AddConnectionsDrawer({
       )}
       <DrawerContent className="w-[min(30rem,92vw)]">
         <DrawerHeader className="relative px-6 pt-7 pb-5">
-          <DrawerTitle className="text-lg">Add Your Company</DrawerTitle>
+          <DrawerTitle className="text-lg">
+            {existingPartnerName
+              ? `Add NYSTAR Connections for ${existingPartnerName}`
+              : "Add Your Company"}
+          </DrawerTitle>
           <DrawerDescription>
+            {`Step ${stepNumber} of ${totalSteps} · `}
             {step === 1
-              ? "Step 1 of 3 · Enter your company and its address."
+              ? "Enter your company and its address."
               : step === 2
-                ? "Step 2 of 3 · Select NYSTAR locations."
-                : "Step 3 of 3 · Review and add follow-up contact details."}
+                ? existingPartnerName
+                  ? "Select NYSTAR locations."
+                  : "Select NYSTAR locations."
+                : "Review and add follow-up contact details."}
           </DrawerDescription>
           <DrawerClose
             render={
@@ -442,10 +462,20 @@ export default function AddConnectionsDrawer({
                                     key={program.id}
                                     orientation="horizontal"
                                     className="items-start gap-3 rounded-sm py-2"
+                                    data-disabled={
+                                      connectedAssetIdSet.has(program.id) ||
+                                      undefined
+                                    }
                                   >
                                     <Checkbox
                                       id={program.id}
-                                      checked={selectedPrograms.has(program.id)}
+                                      disabled={connectedAssetIdSet.has(
+                                        program.id
+                                      )}
+                                      checked={
+                                        connectedAssetIdSet.has(program.id) ||
+                                        selectedPrograms.has(program.id)
+                                      }
                                       onCheckedChange={(checked) =>
                                         toggleProgram(program.id, checked)
                                       }
@@ -462,6 +492,11 @@ export default function AddConnectionsDrawer({
                                           {groupingMode === "region"
                                             ? `${program.category} · ${program.details}`
                                             : program.details}
+                                        </FieldDescription>
+                                      )}
+                                      {connectedAssetIdSet.has(program.id) && (
+                                        <FieldDescription className="text-xs">
+                                          Already connected
                                         </FieldDescription>
                                       )}
                                     </FieldContent>
@@ -483,14 +518,16 @@ export default function AddConnectionsDrawer({
                     Organization
                   </FieldTitle>
                   <p className="drawer-review-copy">
-                    {details.organizationName}
+                    {existingPartnerName ?? details.organizationName}
                   </p>
-                  <p className="drawer-review-copy">
-                    {details.addressLine1}
-                    {details.addressLine2 && `, ${details.addressLine2}`}
-                    <br />
-                    {details.city}, NY {details.postalCode}
-                  </p>
+                  {!existingPartnerName && (
+                    <p className="drawer-review-copy">
+                      {details.addressLine1}
+                      {details.addressLine2 && `, ${details.addressLine2}`}
+                      <br />
+                      {details.city}, NY {details.postalCode}
+                    </p>
+                  )}
                 </section>
 
                 <FieldGroup className="gap-2">
@@ -714,16 +751,18 @@ export default function AddConnectionsDrawer({
               </Button>
             ) : step === 2 ? (
               <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="min-w-24"
-                  onClick={() => setStep(1)}
-                  disabled={isSubmitting || hasSubmitted}
-                >
-                  Back
-                </Button>
+                {!existingPartnerName && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="min-w-24"
+                    onClick={() => setStep(1)}
+                    disabled={isSubmitting || hasSubmitted}
+                  >
+                    Back
+                  </Button>
+                )}
                 <Button
                   type="submit"
                   variant="brand"

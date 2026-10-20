@@ -9,6 +9,7 @@ import {
   FileText,
   Group,
   Info,
+  Link,
   Plus,
   Star,
   Tag,
@@ -311,6 +312,13 @@ export default function NetworkExplorerPanel({
   const selectedProgram = programs.find(
     (program) => program.id === selectedProgramId
   )
+  const selectedPartnerConnectedAssetIds = locations.flatMap((location) =>
+    location.customers
+      .filter((customer) => customer.name.trim() === selectedPartnerName)
+      .flatMap((customer) =>
+        customer.connections.map((connection) => connection.assetId)
+      )
+  )
   const selectedProgramIsMapped = locations.some((location) =>
     location.assets.some((asset) => asset.id === selectedProgramId)
   )
@@ -425,6 +433,29 @@ export default function NetworkExplorerPanel({
                   </Button>
                 }
               />
+              {selectedPartnerName && (
+                <AddConnectionsDrawer
+                  key={selectedPartnerName}
+                  categories={categories}
+                  regions={regions}
+                  partners={innovationPartners}
+                  existingPartnerName={selectedPartnerName}
+                  connectedAssetIds={selectedPartnerConnectedAssetIds}
+                  onStart={startConnectionFlow}
+                  onSaved={setRecentConnections}
+                  trigger={
+                    <Button
+                      type="button"
+                      variant="brand-link"
+                      size="inline"
+                      className="shrink items-start gap-1.5 self-start text-left whitespace-normal [&_svg]:mt-0.5"
+                    >
+                      <Link data-icon="inline-start" />
+                      Add NYSTAR Connections for {selectedPartnerName}
+                    </Button>
+                  }
+                />
+              )}
             </ExplorerSection>
           )}
 
