@@ -459,6 +459,17 @@ body {
   stroke-dasharray: 6 4;
 }
 
+.network-connection-line--selected {
+  stroke-width: 2px;
+  filter: drop-shadow(0 0 1px var(--network-marker-selected))
+    drop-shadow(0 0 3px var(--network-marker-selected));
+}
+
+.network-connection-hit-target {
+  pointer-events: stroke;
+  cursor: pointer;
+}
+
 .network-map-legend__items {
   display: flex;
   flex-direction: column;

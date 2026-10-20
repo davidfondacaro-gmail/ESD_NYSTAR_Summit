@@ -68,7 +68,10 @@ function clusterIcon(cluster: L.MarkerCluster) {
     (total, marker) => total + (markerItemCounts.get(marker) ?? 1),
     0
   )
-  return numberedMarkerIcon(count)
+  const selected = cluster.getAllChildMarkers().some((marker) =>
+    marker.options.icon?.options.className?.includes("nystar-marker--selected")
+  )
+  return numberedMarkerIcon(count, selected)
 }
 
 const REGION_LABEL_OFFSETS: Record<string, [number, number]> = {
@@ -672,7 +675,10 @@ function TourMapEvents({ exitRevision, onManualInteraction }: {
   exitRevision: number
   onManualInteraction: () => void
 }) {
-  const map = useMapEvents({ click: onManualInteraction })
+  const map = useMapEvents({ click: () => {
+    map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+    onManualInteraction()
+  } })
   const previous = useRef(exitRevision)
   useEffect(() => {
     if (previous.current === exitRevision) return
@@ -685,21 +691,33 @@ function TourMapEvents({ exitRevision, onManualInteraction }: {
 const CONNECTION_LINE_PANE = "connection-lines"
 const CONNECTION_LINE_DURATION_MS = 1000
 
+function connectionKey(connection: RecentConnection) {
+  const endpoints = [`asset:${connection.fromAssetId}`, `${connection.to.kind}:${connection.to.id}`].sort()
+  return `${endpoints.join(">")}:${connection.connectionType}`
+}
+
 function ConnectionLines({
   connections,
   locations,
+  selectedConnection,
+  onSelectConnection,
 }: {
   connections: RecentConnection[]
   locations: NystarLocationGroup[]
+  selectedConnection: RecentConnection | null
+  onSelectConnection: (connection: RecentConnection, position: L.LatLng) => void
 }) {
   const map = useMap()
   const lines = useMemo(() => {
     const assetPositions = new Map<string, L.LatLng>()
     const partnerPositions = new Map<string, L.LatLng>()
+    const names = new Map<string, string>()
     for (const location of locations) {
       const position = L.latLng(location.latitude, location.longitude)
       for (const asset of location.assets) assetPositions.set(asset.id, position)
       for (const customer of location.customers) partnerPositions.set(customer.id, position)
+      for (const asset of location.assets) names.set(`asset:${asset.id}`, asset.name)
+      for (const customer of location.customers) names.set(`partner:${customer.id}`, customer.name)
     }
     const seen = new Set<string>()
     return connections.flatMap((connection) => {
@@ -717,15 +735,32 @@ function ConnectionLines({
         from,
         to,
         desired: connection.connectionType === "Desired",
+        connection,
+        label: `${connection.connectionType} connection: ${names.get(`asset:${connection.fromAssetId}`)} and ${names.get(`${connection.to.kind}:${connection.to.id}`)}`,
       }]
     })
   }, [connections, locations])
   const linesRef = useRef(lines)
+  const onSelectRef = useRef(onSelectConnection)
+  const selectedRef = useRef(selectedConnection)
+  const polylinesRef = useRef<L.Polyline[]>([])
   const linesKey = lines.map((line) => line.key).join("|")
 
   useEffect(() => {
     linesRef.current = lines
-  }, [lines])
+    onSelectRef.current = onSelectConnection
+  }, [lines, onSelectConnection])
+
+  useEffect(() => {
+    selectedRef.current = selectedConnection
+    polylinesRef.current.forEach((polyline, index) => {
+      const line = linesRef.current[index]
+      polyline.getElement()?.classList.toggle(
+        "network-connection-line--selected",
+        !!selectedConnection && !!line && connectionKey(line.connection) === connectionKey(selectedConnection)
+      )
+    })
+  }, [selectedConnection, linesKey])
 
   useEffect(() => {
     const currentLines = linesRef.current
@@ -744,6 +779,42 @@ function ConnectionLines({
           : "network-connection-line",
       }).addTo(map)
     )
+    polylinesRef.current = polylines
+    polylines.forEach((polyline, index) => {
+      polyline.getElement()?.classList.toggle(
+        "network-connection-line--selected",
+        !!selectedRef.current && connectionKey(currentLines[index].connection) === connectionKey(selectedRef.current)
+      )
+    })
+    const hitTargets = currentLines.map((line) =>
+      L.polyline([line.from, line.to], {
+        pane: CONNECTION_LINE_PANE,
+        className: "network-connection-hit-target",
+        weight: 14,
+        opacity: 0,
+        bubblingMouseEvents: false,
+      }).on("click", (event: L.LeafletMouseEvent) => {
+        map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+        onSelectRef.current(line.connection, event.latlng)
+      }).addTo(map)
+    )
+    hitTargets.forEach((target, index) => {
+      const element = target.getElement()
+      if (!element) return
+      const line = currentLines[index]
+      element.setAttribute("tabindex", "0")
+      element.setAttribute("role", "button")
+      element.setAttribute("aria-label", line.label)
+      element.addEventListener("keydown", (event: Event) => {
+        if (!(event instanceof KeyboardEvent) || (event.key !== "Enter" && event.key !== " ")) return
+        L.DomEvent.stop(event)
+        map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+        onSelectRef.current(line.connection, L.latLng(
+          (line.from.lat + line.to.lat) / 2,
+          (line.from.lng + line.to.lng) / 2
+        ))
+      })
+    })
     const segments = connectionSegments.get(map) ?? new Map()
     connectionSegments.set(map, segments)
     polylines.forEach((polyline, index) => {
@@ -776,6 +847,8 @@ function ConnectionLines({
     return () => {
       cancelAnimationFrame(frame)
       polylines.forEach((polyline) => polyline.remove())
+      hitTargets.forEach((polyline) => polyline.remove())
+      polylinesRef.current = []
       polylines.forEach((polyline) => segments.delete(polyline))
       map.fire(CONNECTION_GEOMETRY_EVENT)
     }
@@ -921,6 +994,29 @@ export default function NystarLeafletMap({
     [clusterMarkers, groupedLocations]
   )
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
+  const [connectionSelection, setConnectionSelection] = useState<{
+    connection: RecentConnection
+    position: L.LatLng
+    revision: number
+    dismissRevision: number
+  } | null>(null)
+  const activeConnection = connectionSelection?.revision === selectionRevision &&
+    connectionSelection.dismissRevision === popupDismissRevision
+    ? connectionSelection : null
+  useEffect(() => {
+    clusterRef.current?.refreshClusters()
+  }, [activeConnection, clusterMarkers, selectionRevision])
+  const selectConnection = useCallback((connection: RecentConnection, position: L.LatLng) => {
+    onManualInteraction()
+    setConnectionSelection({ connection, position, revision: selectionRevision, dismissRevision: popupDismissRevision })
+  }, [onManualInteraction, selectionRevision, popupDismissRevision])
+  const connectionAssets = locations.flatMap((location) => location.assets).filter((asset) =>
+    activeConnection && (asset.id === activeConnection.connection.fromAssetId ||
+      (activeConnection.connection.to.kind === "asset" && asset.id === activeConnection.connection.to.id))
+  )
+  const connectionCustomers = locations.flatMap((location) => location.customers).filter((customer) =>
+    activeConnection?.connection.to.kind === "partner" && customer.id === activeConnection.connection.to.id
+  )
   const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
   const [popupDismissal, setPopupDismissal] = useState<{
     selectionRevision: number
@@ -1002,44 +1098,14 @@ export default function NystarLeafletMap({
     const customers = selectedOnly
       ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
       : location.customers
-    const selected = locationKey(location) === selectedLocationKey
+    return { location, assets, customers }
+  })
+  function popupDetails(
+    assets: NystarLocationGroup["assets"],
+    customers: NystarLocationGroup["customers"],
+    showConnectionActions = true
+  ) {
     return (
-      <Marker
-        key={`${location.latitude}-${location.longitude}`}
-        eventHandlers={{
-          click: () => {
-            onManualInteraction()
-            setMapPopupRequest({
-              locationKey: locationKey(location),
-              selectionRevision,
-            })
-            // Markers that group several items (clustering on) keep the full-location popup.
-            if (location.assets.length + location.customers.length !== 1) return
-            const [asset] = location.assets
-            const partnerName = location.customers[0]?.name.trim()
-            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
-            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
-          },
-        }}
-        ref={(marker) => {
-          const key = locationKey(location)
-          if (marker) {
-            markerItemCounts.set(marker, location.assets.length + location.customers.length)
-            markerRefs.current.set(key, marker)
-          }
-          else markerRefs.current.delete(key)
-        }}
-        position={markerPositions.get(locationKey(location))!}
-        zIndexOffset={selected ? 1000 : 0}
-        icon={location.assets.length + location.customers.length > 1
-          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
-          : markerIcon(
-          location.assets.map((asset) => asset.category),
-          location.customers.length > 0,
-          selected
-        )}
-      >
-        <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
           <div className="network-popup">
             <ul className="network-popup__assets">
               {assets.map((asset) => (
@@ -1080,7 +1146,7 @@ export default function NystarLeafletMap({
                       .filter(Boolean)
                       .join(", ")}
                   </span>
-                  {onConnectProgram && (
+                  {showConnectionActions && onConnectProgram && (
                     <div className="network-popup__footer">
                       <Button
                         type="button"
@@ -1123,17 +1189,7 @@ export default function NystarLeafletMap({
                       [customer.state, customer.zipCode].filter(Boolean).join(" "),
                     ].filter(Boolean).join(", ")}
                   </span>
-                  {customer.connections.map((connection) => (
-                    <span
-                      className="network-popup__category"
-                      key={connection.id}
-                    >
-                      {connection.connectionType}: {connection.assetName}
-                      {connection.hostOrganization &&
-                        ` · ${connection.hostOrganization}`}
-                    </span>
-                  ))}
-                  {onConnectPartner && (
+                  {showConnectionActions && onConnectPartner && (
                     <div className="network-popup__footer">
                       <Button
                         type="button"
@@ -1151,6 +1207,43 @@ export default function NystarLeafletMap({
               ))}
             </ul>
           </div>
+    )
+  }
+  const renderedMarkers = markers.map(({ location, assets, customers }) => {
+    const selected = activeConnection
+      ? location.assets.some((asset) => connectionAssets.some((item) => item.id === asset.id)) ||
+        location.customers.some((customer) => connectionCustomers.some((item) => item.id === customer.id))
+      : locationKey(location) === selectedLocationKey
+    return (
+      <Marker
+        key={locationKey(location)}
+        eventHandlers={{
+          click: () => {
+            setConnectionSelection(null)
+            onManualInteraction()
+            setMapPopupRequest({ locationKey: locationKey(location), selectionRevision })
+            if (location.assets.length + location.customers.length !== 1) return
+            const [asset] = location.assets
+            const partnerName = location.customers[0]?.name.trim()
+            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
+            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
+          },
+        }}
+        ref={(marker) => {
+          const key = locationKey(location)
+          if (marker) {
+            markerItemCounts.set(marker, location.assets.length + location.customers.length)
+            markerRefs.current.set(key, marker)
+          } else markerRefs.current.delete(key)
+        }}
+        position={markerPositions.get(locationKey(location))!}
+        zIndexOffset={selected ? 1000 : 0}
+        icon={location.assets.length + location.customers.length > 1
+          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
+          : markerIcon(location.assets.map((asset) => asset.category), location.customers.length > 0, selected)}
+      >
+        <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
+          {popupDetails(assets, customers)}
         </Popup>
       </Marker>
     )
@@ -1178,7 +1271,10 @@ export default function NystarLeafletMap({
       <PopupPlacement />
       <MapZoomControls enabled={showZoomControls} touring={!!activeTourRegion} />
       <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
-      <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={onManualInteraction} />
+      <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={() => {
+        setConnectionSelection(null)
+        onManualInteraction()
+      }} />
       <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion} onRegionStatus={onRegionStatus} />
       <OpenSelectedMapSelectionPopup
         popupLocation={popupLocation}
@@ -1201,16 +1297,27 @@ export default function NystarLeafletMap({
           animate={false}
           spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
         >
-          {markers}
+          {renderedMarkers}
         </MarkerClusterGroup>
-      ) : markers}
+      ) : renderedMarkers}
+      {activeConnection && (
+        <Popup key={`${connectionKey(activeConnection.connection)}:${activeConnection.position.toString()}`}
+          position={activeConnection.position} autoPan={false} closeButton={false}
+          className="network-positioned-popup">
+          {popupDetails(connectionAssets, connectionCustomers, false)}
+        </Popup>
+      )}
       <ConnectionLines
         connections={popupConnections}
         locations={locations}
+        selectedConnection={activeConnection?.connection ?? null}
+        onSelectConnection={selectConnection}
       />
       <ConnectionLines
         connections={recentConnections}
         locations={locations}
+        selectedConnection={activeConnection?.connection ?? null}
+        onSelectConnection={selectConnection}
       />
       <Pane
         name="city-labels"
