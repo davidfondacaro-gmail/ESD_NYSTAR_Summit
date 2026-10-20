@@ -27,7 +27,17 @@ import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
-const DEFAULT_MAP_ZOOM = 7.25
+const DEFAULT_MAP_ZOOM = 7.5
+const STATEWIDE_BOUNDS = L.latLngBounds([40.49, -79.77], [45.02, -71.85])
+
+function resetStatewideView(map: L.Map) {
+  const zoom = Math.min(
+    DEFAULT_MAP_ZOOM,
+    map.getBoundsZoom(STATEWIDE_BOUNDS, false, L.point(40, 40))
+  )
+  map.setView(DEFAULT_MAP_CENTER, zoom, { animate: false })
+}
+
 const markerItemCounts = new WeakMap<L.Marker, number>()
 const connectionSegments = new WeakMap<L.Map, Map<L.Polyline, { from: L.LatLng; to: L.LatLng }>>()
 const CONNECTION_GEOMETRY_EVENT = "connectiongeometrychange"
@@ -194,8 +204,16 @@ function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: bool
 
   const wasTouring = useRef(false)
   useEffect(() => {
-    if (!enabled && !touring && !wasTouring.current) {
-      map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
+    if (!enabled && !touring) {
+      const resetView = () => {
+        map.invalidateSize({ pan: false })
+        resetStatewideView(map)
+      }
+      if (!wasTouring.current) resetView()
+      wasTouring.current = touring
+      const observer = new ResizeObserver(resetView)
+      observer.observe(map.getContainer())
+      return () => observer.disconnect()
     }
     wasTouring.current = touring
   }, [enabled, map, touring])
@@ -659,7 +677,7 @@ function TourMapEvents({ exitRevision, onManualInteraction }: {
   useEffect(() => {
     if (previous.current === exitRevision) return
     previous.current = exitRevision
-    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
+    resetStatewideView(map)
   }, [exitRevision, map])
   return null
 }
