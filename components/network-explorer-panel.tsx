@@ -1,6 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import {
+  useCallback,
+  useEffect,
+  useEffectEvent,
+  useMemo,
+  useState,
+} from "react"
 import { useRouter } from "next/navigation"
 import {
   ArrowRight,
@@ -56,6 +62,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import { DATA_TABLES, type DataTableId } from "@/lib/data-tables"
+import {
+  buildTourStops,
+  nextTourIndex,
+  scopedTourStops,
+  TOUR_DWELL_MS,
+} from "@/lib/network-tour"
 import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
@@ -293,6 +305,7 @@ export default function NetworkExplorerPanel({
   const router = useRouter()
 
   function selectSection(section: ExplorerSectionId | null) {
+    if (section !== "tour") pauseTour()
     if (section === "partner" && openSection !== "partner") router.refresh()
     setOpenSection(section)
   }
@@ -303,6 +316,7 @@ export default function NetworkExplorerPanel({
   const [connectDrawerOpen, setConnectDrawerOpen] = useState(false)
 
   function startConnectionFlow() {
+    interruptTour()
     setRecentConnections([])
     setPopupDismissRevision((revision) => revision + 1)
   }
@@ -318,6 +332,7 @@ export default function NetworkExplorerPanel({
     setConnectDrawerOpen(true)
   }
   function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
+    interruptTour()
     if (item.kind === "program") {
       setSelectedProgramId(item.id)
       setSelectedPartnerName("")
@@ -330,8 +345,83 @@ export default function NetworkExplorerPanel({
       selectSection(item.kind === "program" ? "program" : "partner")
     }
   }
-  const [tourStarted, setTourStarted] = useState(false)
-  const [selectedTourRegion, setSelectedTourRegion] = useState("all")
+  const tourStops = useMemo(
+    () => buildTourStops(regions, locations),
+    [regions, locations]
+  )
+  const [tour, setTour] = useState<{
+    scope: string
+    index: number
+    started: boolean
+    playing: boolean
+    ownsMap: boolean
+  }>({ scope: "all", index: 0, started: false, playing: false, ownsMap: false })
+  const [tourStatus, setTourStatus] = useState<{
+    revision: number
+    error: string | null
+  }>({
+    revision: -1,
+    error: null,
+  })
+  const [tourExitRevision, setTourExitRevision] = useState(0)
+  const scopedStops = useMemo(
+    () => scopedTourStops(tourStops, tour.scope),
+    [tourStops, tour.scope]
+  )
+  const tourStop = tour.started ? scopedStops[tour.index] : undefined
+  const activeTourRegion = tour.ownsMap ? (tourStop?.region ?? null) : null
+  const onTourStatus = useCallback((revision: number, error: string | null) => {
+    setTourStatus({ revision, error })
+  }, [])
+
+  function pauseTour() {
+    setTour((current) =>
+      current.playing ? { ...current, playing: false } : current
+    )
+  }
+  function interruptTour() {
+    setTour((current) => ({ ...current, playing: false, ownsMap: false }))
+  }
+  function showTourStop(stop: (typeof tourStops)[number] | undefined) {
+    setSelectedProgramId(stop?.assetId ?? "")
+    setSelectedPartnerName("")
+    setSelectionRevision((revision) => revision + 1)
+  }
+  function startTour(scope: string) {
+    const stops = scopedTourStops(tourStops, scope)
+    setTour({
+      scope,
+      index: 0,
+      started: true,
+      playing: false,
+      ownsMap: stops.length > 0,
+    })
+    showTourStop(stops[0])
+  }
+  function advanceTour(playing: boolean) {
+    const index = nextTourIndex(tour.index, scopedStops.length)
+    setTour({ ...tour, index, playing, ownsMap: true })
+    showTourStop(scopedStops[index])
+  }
+  const autoAdvance = useEffectEvent(() => advanceTour(true))
+  useEffect(() => {
+    if (
+      !tour.playing ||
+      !showTour ||
+      openSection !== "tour" ||
+      tourStatus.revision !== selectionRevision ||
+      tourStatus.error
+    )
+      return
+    const timer = window.setTimeout(() => autoAdvance(), TOUR_DWELL_MS)
+    return () => window.clearTimeout(timer)
+  }, [tour, showTour, openSection, tourStatus, selectionRevision])
+
+  function exitTour() {
+    setTour({ ...tour, started: false, playing: false, ownsMap: false })
+    showTourStop(undefined)
+    setTourExitRevision((revision) => revision + 1)
+  }
   const selectedProgram = programs.find(
     (program) => program.id === selectedProgramId
   )
@@ -371,7 +461,7 @@ export default function NetworkExplorerPanel({
             icon={<Diamond aria-hidden="true" className="shrink-0" />}
             title="NYSTAR Programs"
             open={openSection === "program"}
-            onOpenChange={(open) => setOpenSection(open ? "program" : null)}
+            onOpenChange={(open) => selectSection(open ? "program" : null)}
           >
             <Alert className="border-sidebar-border bg-transparent">
               <Info aria-hidden="true" />
@@ -385,6 +475,7 @@ export default function NetworkExplorerPanel({
               labelledBy="find-program-heading"
               value={selectedProgramId}
               onValueChange={(value) => {
+                interruptTour()
                 setSelectedProgramId(value)
                 setSelectedPartnerName("")
                 setSelectionRevision((revision) => revision + 1)
@@ -433,6 +524,7 @@ export default function NetworkExplorerPanel({
                 labelledBy="find-partner-heading"
                 value={selectedPartnerName}
                 onValueChange={(value) => {
+                  interruptTour()
                   setSelectedPartnerName(value)
                   setSelectedProgramId("")
                   setSelectionRevision((revision) => revision + 1)
@@ -488,38 +580,71 @@ export default function NetworkExplorerPanel({
               icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
               title="Take a Guided Tour of the Network"
               open={openSection === "tour"}
-              onOpenChange={(open) => setOpenSection(open ? "tour" : null)}
+              onOpenChange={(open) => selectSection(open ? "tour" : null)}
             >
               <Alert className="border-sidebar-border bg-transparent">
                 <Info aria-hidden="true" />
                 <AlertDescription>
-                  Select a region below to start your tour.
+                  Select a region to start. Next advances one program; Auto
+                  displays each program and its popup for 8 seconds.
                 </AlertDescription>
               </Alert>
               <ExplorerListbox
                 labelledBy="guided-tour-heading"
                 options={tourRegionOptions}
-                value={selectedTourRegion}
+                value={tourStop?.region ?? tour.scope}
                 visibleRows={6}
-                onValueChange={setSelectedTourRegion}
+                onValueChange={startTour}
               />
+              {tour.started && !tourStop && (
+                <p className="text-sm text-muted-foreground">
+                  No mapped NYSTAR programs in this region.
+                </p>
+              )}
+              {tour.ownsMap &&
+                tourStatus.revision === selectionRevision &&
+                tourStatus.error && (
+                  <Alert variant="destructive">
+                    <Info aria-hidden="true" />
+                    <AlertDescription>{tourStatus.error}</AlertDescription>
+                  </Alert>
+                )}
               <div className="flex items-center justify-between gap-2">
                 <Button
                   type="button"
                   variant="default"
                   size="sm"
-                  className="bg-brand-blue-primary text-white hover:bg-brand-blue-primary/90"
-                  onClick={() => setTourStarted((started) => !started)}
+                  onClick={() =>
+                    tour.started ? exitTour() : startTour(tour.scope)
+                  }
                 >
-                  {tourStarted ? "Exit Tour" : "Start Tour"}
+                  {tour.started ? "Exit Tour" : "Start Tour"}
                 </Button>
-                {tourStarted && (
+                {tour.started && (
                   <div className="ml-auto flex items-center gap-2">
-                    <Button type="button" variant="brand-outline" size="sm">
+                    <Button
+                      type="button"
+                      variant="brand-outline"
+                      size="sm"
+                      disabled={!tourStop}
+                      onClick={() => advanceTour(false)}
+                    >
                       Next
                     </Button>
-                    <Button type="button" variant="brand-outline" size="sm">
-                      Auto
+                    <Button
+                      type="button"
+                      variant="brand-outline"
+                      size="sm"
+                      disabled={!tourStop}
+                      onClick={() => {
+                        if (tour.playing) pauseTour()
+                        else {
+                          setTour({ ...tour, playing: true, ownsMap: true })
+                          if (!tour.ownsMap) showTourStop(tourStop)
+                        }
+                      }}
+                    >
+                      {tour.playing ? "Pause" : "Auto"}
                     </Button>
                   </div>
                 )}
@@ -624,7 +749,7 @@ export default function NetworkExplorerPanel({
                 onPressedChange={(visible) => {
                   setShowTour(visible)
                   if (!visible) {
-                    setTourStarted(false)
+                    pauseTour()
                     setOpenSection((section) =>
                       section === "tour" ? null : section
                     )
@@ -693,6 +818,10 @@ export default function NetworkExplorerPanel({
           showCityLabels={showCityLabels}
           recentConnections={recentConnections}
           popupDismissRevision={popupDismissRevision}
+          activeTourRegion={activeTourRegion}
+          tourExitRevision={tourExitRevision}
+          onTourStatus={onTourStatus}
+          onManualInteraction={interruptTour}
         />
       </SidebarInset>
     </SidebarProvider>

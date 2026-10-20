@@ -30,6 +30,10 @@ export default function NystarNetworkMap({
   popupDismissRevision,
   onConnectProgram,
   onSelectItem,
+  activeTourRegion,
+  tourExitRevision,
+  onTourStatus,
+  onManualInteraction,
 }: {
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
@@ -45,6 +49,10 @@ export default function NystarNetworkMap({
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
   onSelectItem?: (item: MapItemSelection) => void
+  activeTourRegion: string | null
+  tourExitRevision: number
+  onTourStatus: (revision: number, error: string | null) => void
+  onManualInteraction: () => void
 }) {
   return (
     <LeafletMap
@@ -62,6 +70,10 @@ export default function NystarNetworkMap({
       popupDismissRevision={popupDismissRevision}
       onConnectProgram={onConnectProgram}
       onSelectItem={onSelectItem}
+      activeTourRegion={activeTourRegion}
+      tourExitRevision={tourExitRevision}
+      onTourStatus={onTourStatus}
+      onManualInteraction={onManualInteraction}
     />
   )
 }

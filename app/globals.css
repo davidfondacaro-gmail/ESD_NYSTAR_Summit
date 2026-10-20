@@ -105,6 +105,8 @@
   --network-map-bg: #edf2f1;
   --network-region-fill: #dce9e8;
   --network-region-outline: #789398;
+  --network-region-active-outline: #246774;
+  --network-region-active-fill: #b8d9d7;
   --network-node: #58737a;
   --network-city-label: #52686d;
   --network-popup-bg: #ffffff;
@@ -156,6 +158,8 @@
   --network-map-bg: #0e1b24;
   --network-region-fill: #142b3b;
   --network-region-outline: #35546b;
+  --network-region-active-outline: #8ccfda;
+  --network-region-active-fill: #244b60;
   --network-node: #c3d1da;
   --network-city-label: #8294a2;
   --network-popup-bg: #142b3b;

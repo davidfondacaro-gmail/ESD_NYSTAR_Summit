@@ -2,7 +2,7 @@
 
 import L from "leaflet"
 import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import { useTheme } from "next-themes"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
@@ -12,6 +12,7 @@ import {
   Popup,
   ZoomControl,
   useMap,
+  useMapEvents,
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
@@ -151,12 +152,12 @@ function InvalidateMapSize() {
   return null
 }
 
-function RecenterMapOnSidebarClose() {
+function RecenterMapOnSidebarClose({ touring }: { touring: boolean }) {
   const map = useMap()
   const { isMobile, state } = useSidebar()
 
   useEffect(() => {
-    if (isMobile || state !== "collapsed") {
+    if (touring || isMobile || state !== "collapsed") {
       return
     }
 
@@ -167,12 +168,12 @@ function RecenterMapOnSidebarClose() {
     }, 250)
 
     return () => window.clearTimeout(recenterTimeout)
-  }, [isMobile, map, state])
+  }, [isMobile, map, state, touring])
 
   return null
 }
 
-function MapZoomControls({ enabled }: { enabled: boolean }) {
+function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: boolean }) {
   const map = useMap()
 
   useEffect(() => {
@@ -186,17 +187,72 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
     map.dragging.disable()
     map.setMinZoom(5)
     map.setMaxZoom(12)
-    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
   }, [enabled, map])
+
+  const wasTouring = useRef(false)
+  useEffect(() => {
+    if (!enabled && !touring && !wasTouring.current) {
+      map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
+    }
+    wasTouring.current = touring
+  }, [enabled, map, touring])
 
   return enabled ? <ZoomControl position="bottomright" /> : null
 }
 
-function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
+function MepRegionsLayer({
+  showRegionLabels, activeRegion, onRegionStatus,
+}: {
+  showRegionLabels: boolean
+  activeRegion: string | null
+  onRegionStatus: (region: string, error: string | null) => void
+}) {
   const map = useMap()
   const { resolvedTheme } = useTheme()
   const regionLabelsLayerRef = useRef<L.LayerGroup | null>(null)
   const showRegionLabelsRef = useRef(showRegionLabels)
+  const [regionData, setRegionData] = useState<{
+    layer: L.GeoJSON | null
+    error: string | null
+  }>({ layer: null, error: null })
+
+  useEffect(() => {
+    const { layer, error } = regionData
+    if (error && activeRegion) {
+      onRegionStatus(activeRegion, error)
+      return
+    }
+    if (!layer) return
+    let bounds: L.LatLngBounds | undefined
+    const css = getComputedStyle(document.documentElement)
+    layer.eachLayer((item) => {
+      if (!(item instanceof L.Polygon)) return
+      const selected = item.feature?.properties?.region_name?.trim() === activeRegion
+      item.setStyle({
+        color: css.getPropertyValue(selected ? "--network-region-active-outline" : "--network-region-outline").trim(),
+        fillColor: css.getPropertyValue(selected ? "--network-region-active-fill" : "--network-region-fill").trim(),
+        weight: selected ? 3 : 1.25,
+      })
+      if (selected) bounds = bounds ? bounds.extend(item.getBounds()) : item.getBounds()
+    })
+    if (!activeRegion) return
+    if (!bounds?.isValid()) {
+      const message = `Unable to find the map boundary for ${activeRegion}.`
+      console.error(message)
+      onRegionStatus(activeRegion, message)
+      return
+    }
+    const regionBounds = bounds
+    const region = activeRegion
+    function fitRegion() {
+      map.invalidateSize({ pan: false })
+      map.fitBounds(regionBounds, { padding: [36, 36], maxZoom: 10, animate: false })
+      onRegionStatus(region, null)
+    }
+    fitRegion()
+    map.on("resize", fitRegion)
+    return () => { map.off("resize", fitRegion) }
+  }, [activeRegion, regionData, map, onRegionStatus])
 
   useEffect(() => {
     showRegionLabelsRef.current = showRegionLabels
@@ -271,12 +327,14 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
             }).addTo(labelsLayer)
           },
         }).addTo(map)
+        setRegionData({ layer: regionsLayer, error: null })
         regionLabelsLayer = labelsLayer
         regionLabelsLayerRef.current = labelsLayer
         if (showRegionLabelsRef.current) labelsLayer.addTo(map)
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load NY MEP regions.", error)
+          setRegionData({ layer: null, error: "Unable to load region boundaries. Reload the page to retry the tour." })
         }
       }
     }
@@ -431,6 +489,8 @@ function OpenSelectedMapSelectionPopup({
   selectionRevision,
   mapPopupRequest,
   clusterMarkers,
+  ready,
+  onPopupReady,
 }: {
   popupLocation: NystarLocationGroup | undefined
   markerRefs: RefObject<Map<string, L.Marker>>
@@ -438,12 +498,14 @@ function OpenSelectedMapSelectionPopup({
   selectionRevision: number
   mapPopupRequest: MapPopupRequest | null
   clusterMarkers: boolean
+  ready: boolean
+  onPopupReady?: () => void
 }) {
   const map = useMap()
 
   useLayoutEffect(() => {
     map.closePopup()
-    if (!popupLocation) {
+    if (!popupLocation || !ready) {
       return
     }
 
@@ -475,7 +537,10 @@ function OpenSelectedMapSelectionPopup({
     }
 
     function openPopup() {
-      if (!cancelled) marker!.openPopup()
+      if (!cancelled) {
+        marker!.openPopup()
+        onPopupReady?.()
+      }
     }
 
     const registration = window.setTimeout(revealMarker, 0)
@@ -484,8 +549,22 @@ function OpenSelectedMapSelectionPopup({
       window.clearTimeout(registration)
       group?.off("spiderfied", openPopup)
     }
-  }, [clusterRef, clusterMarkers, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
+  }, [clusterRef, clusterMarkers, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision, ready, onPopupReady])
 
+  return null
+}
+
+function TourMapEvents({ exitRevision, onManualInteraction }: {
+  exitRevision: number
+  onManualInteraction: () => void
+}) {
+  const map = useMapEvents({ click: onManualInteraction })
+  const previous = useRef(exitRevision)
+  useEffect(() => {
+    if (previous.current === exitRevision) return
+    previous.current = exitRevision
+    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
+  }, [exitRevision, map])
   return null
 }
 
@@ -670,6 +749,10 @@ export default function NystarLeafletMap({
   popupDismissRevision,
   onConnectProgram,
   onSelectItem,
+  activeTourRegion,
+  tourExitRevision,
+  onTourStatus,
+  onManualInteraction,
 }: {
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
@@ -685,7 +768,26 @@ export default function NystarLeafletMap({
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
   onSelectItem?: (item: MapItemSelection) => void
+  activeTourRegion: string | null
+  tourExitRevision: number
+  onTourStatus: (revision: number, error: string | null) => void
+  onManualInteraction: () => void
 }) {
+  const [regionStatus, setRegionStatus] = useState<{ region: string; error: string | null } | null>(null)
+  const onRegionStatus = useCallback((region: string, error: string | null) => {
+    setRegionStatus({ region, error })
+  }, [])
+  const tourRegionReady = regionStatus?.region === activeTourRegion && !regionStatus?.error
+  const onPopupReady = useCallback(() => {
+    if (activeTourRegion && regionStatus?.region === activeTourRegion && !regionStatus.error) {
+      onTourStatus(selectionRevision, null)
+    }
+  }, [activeTourRegion, onTourStatus, selectionRevision, regionStatus])
+  useEffect(() => {
+    if (activeTourRegion && regionStatus?.region === activeTourRegion && regionStatus.error) {
+      onTourStatus(selectionRevision, regionStatus.error)
+    }
+  }, [activeTourRegion, regionStatus, onTourStatus, selectionRevision])
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
   const locations = useMemo(
@@ -776,6 +878,7 @@ export default function NystarLeafletMap({
         key={`${location.latitude}-${location.longitude}`}
         eventHandlers={{
           click: () => {
+            onManualInteraction()
             setMapPopupRequest({
               locationKey: locationKey(location),
               selectionRevision,
@@ -929,9 +1032,10 @@ export default function NystarLeafletMap({
     >
       <InvalidateMapSize />
       <PopupPlacement />
-      <MapZoomControls enabled={showZoomControls} />
-      <RecenterMapOnSidebarClose />
-      <MepRegionsLayer showRegionLabels={showRegionLabels} />
+      <MapZoomControls enabled={showZoomControls} touring={!!activeTourRegion} />
+      <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
+      <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={onManualInteraction} />
+      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion} onRegionStatus={onRegionStatus} />
       <OpenSelectedMapSelectionPopup
         popupLocation={popupLocation}
         markerRefs={markerRefs}
@@ -939,6 +1043,8 @@ export default function NystarLeafletMap({
         selectionRevision={selectionRevision}
         mapPopupRequest={mapPopupRequest}
         clusterMarkers={clusterMarkers}
+        ready={!activeTourRegion || tourRegionReady}
+        onPopupReady={onPopupReady}
       />
       {clusterMarkers ? (
         <MarkerClusterGroup
