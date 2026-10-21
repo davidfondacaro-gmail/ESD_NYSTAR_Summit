@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Separator } from "@/components/ui/separator"
 import { SIDEBAR_WIDTH } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
@@ -457,7 +458,15 @@ export default function ConnectProgramDrawer({
                     <ProgramType category={sourceProgram.category} />
                   )}
                 </div>
-                <p className="text-muted-foreground">and</p>
+                <div className="my-3 flex items-center">
+                  <div className="w-7 shrink-0">
+                    <Separator />
+                  </div>
+                  <span className="rounded-sm bg-muted px-2 py-1 text-sm text-foreground">
+                    and
+                  </span>
+                  <Separator className="min-w-0 flex-1" />
+                </div>
                 {connectionType === "nystar-to-nystar" && targetProgram && (
                   <div className="flex flex-col gap-1">
                     <p>{targetProgram.name}</p>
@@ -491,10 +500,11 @@ export default function ConnectProgramDrawer({
                   </div>
                 )}
               </div>
+              <Separator />
               <p>
                 {connectionStatus === "existing"
-                  ? "This is a past/existing connection"
-                  : "This is a new/desired connection"}
+                  ? "This is a past/existing connection."
+                  : "This is a new/desired connection."}
               </p>
               {isDesired && (
                 <FieldGroup className="gap-4 border-t border-border pt-4">
