@@ -122,7 +122,7 @@ const cityLabels = [
   {
     name: "Plattsburgh",
     position: [44.6995, -73.4529] as L.LatLngExpression,
-    offset: [20, 1],
+    offset: [-120, 1],
   },
   {
     name: "Watertown",
