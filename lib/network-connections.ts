@@ -111,6 +111,31 @@ export type ConnectedOrganization = {
   category?: string
 }
 
+export function existingConnectionTargets(
+  assetId: string,
+  programConnections: NystarProgramConnection[],
+  locations: NystarLocationGroup[]
+) {
+  const connections = connectionsForPopup(
+    new Set([assetId]),
+    new Set(),
+    programConnections,
+    locations
+  )
+  const programIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  for (const connection of connections) {
+    if (connection.to.kind === "asset") programIds.add(connection.to.id)
+    else partnerIds.add(connection.to.id)
+  }
+  const partnerNames = locations.flatMap((location) =>
+    location.customers
+      .filter((customer) => partnerIds.has(customer.id))
+      .map((customer) => customer.name)
+  )
+  return { programIds, partnerNames }
+}
+
 export function connectedOrganizationsForPopup(
   point: { kind: "asset" | "partner"; id: string },
   programConnections: NystarProgramConnection[],

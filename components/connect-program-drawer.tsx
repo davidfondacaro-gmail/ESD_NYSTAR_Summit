@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Info, Link } from "lucide-react"
+import { Info, Link, TriangleAlert } from "lucide-react"
 
 import InnovationPartnerPicker, {
   type PartnerRegionGroup,
@@ -41,8 +41,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { categoryColor } from "@/lib/nystar-category-colors"
 import { normalizeOrganizationName } from "@/lib/organization-name"
+import { existingConnectionTargets } from "@/lib/network-connections"
 import type { RecentConnection } from "@/lib/recent-connection"
-import type { NystarProgramGroup } from "@/lib/nystar-locations"
+import type {
+  NystarLocationGroup,
+  NystarProgramConnection,
+  NystarProgramGroup,
+} from "@/lib/nystar-locations"
 
 function ProgramType({ category }: { category: string }) {
   return (
@@ -82,6 +87,8 @@ export default function ConnectProgramDrawer({
   regions,
   partners,
   partnerRegionGroups,
+  locations,
+  programConnections,
   onStart,
   onSaved,
   open: openProp,
@@ -93,6 +100,8 @@ export default function ConnectProgramDrawer({
   regions: NystarProgramGroup[]
   partners: string[]
   partnerRegionGroups: PartnerRegionGroup[]
+  locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
   onStart?: () => void
   onSaved?: (connections: RecentConnection[]) => void
   open?: boolean
@@ -158,6 +167,26 @@ export default function ConnectProgramDrawer({
         normalizeOrganizationName(partner) ===
         normalizeOrganizationName(newPartnerName)
     )
+  const connectedTargets = existingConnectionTargets(
+    programId,
+    programConnections,
+    locations
+  )
+  const duplicateConnection =
+    connectionType === "nystar-to-nystar"
+      ? connectedTargets.programIds.has(targetProgramId)
+      : connectionType === "nystar-to-partner" &&
+        !isAddingPartner &&
+        connectedTargets.partnerNames.some(
+          (name) =>
+            normalizeOrganizationName(name) ===
+            normalizeOrganizationName(targetPartnerName)
+        )
+  const duplicateWarning = duplicateConnection
+    ? `A connection to ${connectionType === "nystar-to-nystar" ? targetProgram?.name : targetPartnerName} already exists. Select a different organization.`
+    : isAddingPartner && newPartnerNameTaken
+      ? `An organization named "${newPartnerName}" already exists. Select it from the partner list instead.`
+      : ""
   const newPartnerIsValid =
     Boolean(newPartnerName) &&
     !newPartnerNameTaken &&
@@ -207,6 +236,10 @@ export default function ConnectProgramDrawer({
   }
 
   async function saveConnection() {
+    if (duplicateWarning) {
+      setSaveError(duplicateWarning)
+      return
+    }
     if (isDesired && (followupEmailInvalid || followupPhoneInvalid)) {
       setFollowupTouched({ email: true, phone: true })
       return
@@ -655,6 +688,12 @@ export default function ConnectProgramDrawer({
           )}
         </div>
         <DrawerFooter className="px-6 pt-4 pb-6">
+          {duplicateWarning && (
+            <Alert variant="warning">
+              <TriangleAlert aria-hidden="true" />
+              <AlertDescription>{duplicateWarning}</AlertDescription>
+            </Alert>
+          )}
           <div className="flex flex-wrap items-center justify-end gap-2">
             <DrawerClose
               render={
@@ -676,7 +715,7 @@ export default function ConnectProgramDrawer({
                 <Button
                   type="button"
                   variant="brand"
-                  disabled={isSaving}
+                  disabled={isSaving || Boolean(duplicateWarning)}
                   onClick={() => void saveConnection()}
                 >
                   {isSaving ? "Saving…" : "Save Connection"}
@@ -699,7 +738,7 @@ export default function ConnectProgramDrawer({
                 <Button
                   type="button"
                   variant="brand"
-                  disabled={!canReview}
+                  disabled={!canReview || Boolean(duplicateWarning)}
                   onClick={() => setIsReview(true)}
                 >
                   Next

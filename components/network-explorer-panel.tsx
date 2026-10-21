@@ -515,6 +515,8 @@ export default function NetworkExplorerPanel({
                 regions={regions}
                 partners={innovationPartners}
                 partnerRegionGroups={partnerRegionGroups}
+                locations={locations}
+                programConnections={programConnections}
                 onStart={startConnectionFlow}
                 onSaved={setRecentConnections}
                 open={connectDrawerOpen}

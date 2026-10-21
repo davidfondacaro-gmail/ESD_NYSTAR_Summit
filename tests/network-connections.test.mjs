@@ -2,6 +2,7 @@ import assert from "node:assert/strict"
 import test from "node:test"
 import {
   connectedOrganizationsForPopup,
+  existingConnectionTargets,
   connectionKey,
   connectionsForPopup,
   tourInsetData,
@@ -48,6 +49,26 @@ const programConnections = [
   { assetId1: "a", assetId2: "unmapped", connectionType: "Existing" },
   { assetId1: "b", assetId2: "unrelated", connectionType: "Existing" },
 ]
+
+test("duplicate targets ignore status, direction and repeated records", () => {
+  const targets = existingConnectionTargets("a", programConnections, locations)
+  assert.deepEqual([...targets.programIds].sort(), ["b", "unmapped"])
+  assert.deepEqual(targets.partnerNames.sort(), ["local", "remote"])
+  assert.ok(
+    existingConnectionTargets(
+      "b",
+      programConnections,
+      locations
+    ).programIds.has("a")
+  )
+  const isolated = existingConnectionTargets(
+    "isolated",
+    programConnections,
+    locations
+  )
+  assert.equal(isolated.programIds.size, 0)
+  assert.deepEqual(isolated.partnerNames, [])
+})
 
 test("inset contains only direct mapped endpoints, including remote partners and programs", () => {
   const data = tourInsetData("a", programConnections, locations)
