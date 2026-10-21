@@ -52,7 +52,7 @@ test("regional scope loops without leaving the region", () => {
   assert.equal(stops[nextTourIndex(1, stops.length)].assetId, "4")
 })
 
-test("handles empty and singleton tours and fixes dwell at eight seconds", () => {
+test("handles empty and singleton tours and fixes dwell at four seconds", () => {
   assert.deepEqual(
     scopedTourStops(buildTourStops(regions, locations), "Empty"),
     []
@@ -60,5 +60,5 @@ test("handles empty and singleton tours and fixes dwell at eight seconds", () =>
   assert.deepEqual(buildTourStops([], []), [])
   assert.equal(nextTourIndex(0, 0), 0)
   assert.equal(nextTourIndex(0, 1), 0)
-  assert.equal(TOUR_DWELL_MS, 8000)
+  assert.equal(TOUR_DWELL_MS, 4000)
 })

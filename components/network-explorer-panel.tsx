@@ -624,7 +624,7 @@ export default function NetworkExplorerPanel({
                     <Info aria-hidden="true" />
                     <AlertDescription>
                       Select a region to start. Next advances one program; Auto
-                      displays each program and its popup for 8 seconds. The
+                      displays each program and its popup for 4 seconds. The
                       statewide inset shows the current program and its
                       connections.
                     </AlertDescription>
