@@ -1,17 +1,19 @@
 "use client"
 
 import L from "leaflet"
-import { arrow, computePosition, flip, offset, shift } from "@floating-ui/dom"
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
-import { useTheme } from "next-themes"
+import Image from "next/image"
+import { arrow, computePosition, offset, platform, shift, type Placement } from "@floating-ui/dom"
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
   MapContainer,
   Marker,
   Pane,
   Popup,
+  Polyline,
   ZoomControl,
   useMap,
+  useMapEvents,
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
@@ -23,10 +25,24 @@ import type {
   NystarProgramConnection,
 } from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
+import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
+import { connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
-const DEFAULT_MAP_ZOOM = 7.25
+const DEFAULT_MAP_ZOOM = 7.5
+const STATEWIDE_BOUNDS = L.latLngBounds([40.49, -79.77], [45.02, -71.85])
+
+function resetStatewideView(map: L.Map) {
+  const zoom = Math.min(
+    DEFAULT_MAP_ZOOM,
+    map.getBoundsZoom(STATEWIDE_BOUNDS, false, L.point(40, 40))
+  )
+  map.setView(DEFAULT_MAP_CENTER, zoom, { animate: false })
+}
+
 const markerItemCounts = new WeakMap<L.Marker, number>()
+const connectionSegments = new WeakMap<L.Map, Map<L.Polyline, { from: L.LatLng; to: L.LatLng }>>()
+const CONNECTION_GEOMETRY_EVENT = "connectiongeometrychange"
 
 export type MapItemSelection =
   | { kind: "program"; id: string }
@@ -54,7 +70,10 @@ function clusterIcon(cluster: L.MarkerCluster) {
     (total, marker) => total + (markerItemCounts.get(marker) ?? 1),
     0
   )
-  return numberedMarkerIcon(count)
+  const selected = cluster.getAllChildMarkers().some((marker) =>
+    marker.options.icon?.options.className?.includes("nystar-marker--selected")
+  )
+  return numberedMarkerIcon(count, selected)
 }
 
 const REGION_LABEL_OFFSETS: Record<string, [number, number]> = {
@@ -104,7 +123,7 @@ const cityLabels = [
   {
     name: "Plattsburgh",
     position: [44.6995, -73.4529] as L.LatLngExpression,
-    offset: [20, 1],
+    offset: [-120, 1],
   },
   {
     name: "Watertown",
@@ -151,12 +170,12 @@ function InvalidateMapSize() {
   return null
 }
 
-function RecenterMapOnSidebarClose() {
+function RecenterMapOnSidebarClose({ touring }: { touring: boolean }) {
   const map = useMap()
   const { isMobile, state } = useSidebar()
 
   useEffect(() => {
-    if (isMobile || state !== "collapsed") {
+    if (touring || isMobile || state !== "collapsed") {
       return
     }
 
@@ -167,12 +186,12 @@ function RecenterMapOnSidebarClose() {
     }, 250)
 
     return () => window.clearTimeout(recenterTimeout)
-  }, [isMobile, map, state])
+  }, [isMobile, map, state, touring])
 
   return null
 }
 
-function MapZoomControls({ enabled }: { enabled: boolean }) {
+function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: boolean }) {
   const map = useMap()
 
   useEffect(() => {
@@ -186,17 +205,85 @@ function MapZoomControls({ enabled }: { enabled: boolean }) {
     map.dragging.disable()
     map.setMinZoom(5)
     map.setMaxZoom(12)
-    map.setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: false })
   }, [enabled, map])
+
+  const wasTouring = useRef(false)
+  useEffect(() => {
+    if (!enabled && !touring) {
+      const resetView = () => {
+        map.invalidateSize({ pan: false })
+        resetStatewideView(map)
+      }
+      if (!wasTouring.current) resetView()
+      wasTouring.current = touring
+      const observer = new ResizeObserver(resetView)
+      observer.observe(map.getContainer())
+      return () => observer.disconnect()
+    }
+    wasTouring.current = touring
+  }, [enabled, map, touring])
 
   return enabled ? <ZoomControl position="bottomright" /> : null
 }
 
-function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
+function regionStyle(selected: boolean): L.PathOptions {
+  return {
+    color: selected ? "var(--network-region-active-outline)" : "var(--network-region-outline)",
+    fillColor: selected ? "var(--network-region-active-fill)" : "var(--network-region-fill)",
+    weight: selected ? 3 : 1.25,
+    opacity: 0.9,
+    fillOpacity: 0.98,
+  }
+}
+
+function MepRegionsLayer({
+  showRegionLabels, activeRegion, onRegionStatus, onGeometry,
+}: {
+  showRegionLabels: boolean
+  activeRegion: string | null
+  onRegionStatus: (region: string, error: string | null) => void
+  onGeometry: (geometry: GeoJSON.GeoJsonObject) => void
+}) {
   const map = useMap()
-  const { resolvedTheme } = useTheme()
   const regionLabelsLayerRef = useRef<L.LayerGroup | null>(null)
   const showRegionLabelsRef = useRef(showRegionLabels)
+  const [regionData, setRegionData] = useState<{
+    layer: L.GeoJSON | null
+    error: string | null
+  }>({ layer: null, error: null })
+
+  useEffect(() => {
+    const { layer, error } = regionData
+    if (error && activeRegion) {
+      onRegionStatus(activeRegion, error)
+      return
+    }
+    if (!layer) return
+    let bounds: L.LatLngBounds | undefined
+    layer.eachLayer((item) => {
+      if (!(item instanceof L.Polygon)) return
+      const selected = item.feature?.properties?.region_name?.trim() === activeRegion
+      item.setStyle(regionStyle(selected))
+      if (selected) bounds = bounds ? bounds.extend(item.getBounds()) : item.getBounds()
+    })
+    if (!activeRegion) return
+    if (!bounds?.isValid()) {
+      const message = `Unable to find the map boundary for ${activeRegion}.`
+      console.error(message)
+      onRegionStatus(activeRegion, message)
+      return
+    }
+    const regionBounds = bounds
+    const region = activeRegion
+    function fitRegion() {
+      map.invalidateSize({ pan: false })
+      map.fitBounds(regionBounds, { padding: [36, 36], maxZoom: 10, animate: false })
+      onRegionStatus(region, null)
+    }
+    fitRegion()
+    map.on("resize", fitRegion)
+    return () => { map.off("resize", fitRegion) }
+  }, [activeRegion, regionData, map, onRegionStatus])
 
   useEffect(() => {
     showRegionLabelsRef.current = showRegionLabels
@@ -225,6 +312,7 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
         if (controller.signal.aborted) {
           return
         }
+        onGeometry(geoJson)
 
         const regionLabelsPane =
           map.getPane("region-labels") ?? map.createPane("region-labels")
@@ -234,17 +322,7 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
 
         regionsLayer = L.geoJSON(geoJson, {
           interactive: false,
-          style: {
-            color: getComputedStyle(document.documentElement)
-              .getPropertyValue("--network-region-outline")
-              .trim(),
-            weight: 1.25,
-            opacity: 0.9,
-            fillColor: getComputedStyle(document.documentElement)
-              .getPropertyValue("--network-region-fill")
-              .trim(),
-            fillOpacity: 0.98,
-          },
+          style: regionStyle(false),
           onEachFeature(feature, layer) {
             const regionName =
               typeof feature.properties?.region_name === "string"
@@ -271,12 +349,14 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
             }).addTo(labelsLayer)
           },
         }).addTo(map)
+        setRegionData({ layer: regionsLayer, error: null })
         regionLabelsLayer = labelsLayer
         regionLabelsLayerRef.current = labelsLayer
         if (showRegionLabelsRef.current) labelsLayer.addTo(map)
       } catch (error) {
         if (!controller.signal.aborted) {
           console.error("Failed to load NY MEP regions.", error)
+          setRegionData({ layer: null, error: "Unable to load region boundaries. Reload the page to retry the tour." })
         }
       }
     }
@@ -291,7 +371,7 @@ function MepRegionsLayer({ showRegionLabels }: { showRegionLabels: boolean }) {
         regionLabelsLayerRef.current = null
       }
     }
-  }, [map, resolvedTheme])
+  }, [map, onGeometry])
 
   return null
 }
@@ -302,9 +382,27 @@ function PopupPlacement() {
   useEffect(() => {
     let activePopup: L.Popup | null = null
     let revision = 0
+    let placedTransform = ""
     const observer = new ResizeObserver(() => {
       void positionPopup()
     })
+    const positionObserver = new MutationObserver(() => {
+      if (activePopup?.getElement()?.style.transform !== placedTransform) {
+        void positionPopup()
+      }
+    })
+    const shell = map.getContainer().parentElement
+    const obstacleObserver = new ResizeObserver(() => { void positionPopup() })
+    const obstacleSelector = ".network-map-legend, .network-tour-inset"
+    function observeObstacle() {
+      obstacleObserver.disconnect()
+      const obstacle = shell?.querySelector(obstacleSelector)
+      if (obstacle) obstacleObserver.observe(obstacle)
+      void positionPopup()
+    }
+    const shellObserver = new MutationObserver(observeObstacle)
+    if (shell) shellObserver.observe(shell, { childList: true })
+    observeObstacle()
 
     async function positionPopup() {
       const popup = activePopup
@@ -334,18 +432,83 @@ function PopupPlacement() {
           return new DOMRect(mapRect.left + point.x, mapRect.top + point.y, 0, 0)
         },
       }
-      const result = await computePosition(reference, element, {
-        placement: "top",
-        strategy: "absolute",
-        middleware: [
-          offset(20),
-          flip({ boundary: mapElement, padding: 12, fallbackPlacements: ["bottom", "left", "right"] }),
-          shift({ boundary: mapElement, padding: 12, crossAxis: true }),
-          arrow({ element: pointer, padding: 10 }),
-        ],
+      const mapRect = mapElement.getBoundingClientRect()
+      const obstacleRect = shell?.querySelector(obstacleSelector)?.getBoundingClientRect()
+      const segments = [...(connectionSegments.get(map)?.values() ?? [])].map(({ from, to }) => {
+        const a = map.latLngToContainerPoint(from)
+        const b = map.latLngToContainerPoint(to)
+        return {
+          from: { x: mapRect.left + a.x, y: mapRect.top + a.y },
+          to: { x: mapRect.left + b.x, y: mapRect.top + b.y },
+        }
       })
+      const placements: Placement[] = [
+        "top", "bottom", "left", "right",
+        "top-start", "top-end", "bottom-start", "bottom-end",
+        "left-start", "left-end", "right-start", "right-end",
+      ]
+      const candidates = await Promise.all(placements.map(async (placement) => {
+        const result = await computePosition(reference, element, {
+          placement,
+          strategy: "fixed",
+          // Leaflet transforms the popup pane; score candidates in viewport coordinates.
+          platform: { ...platform, getOffsetParent: () => window },
+          middleware: [
+            offset(20),
+            shift({ boundary: mapElement, padding: 12, crossAxis: true }),
+            {
+              name: "avoidMapOverlay",
+              fn({ x, y, rects }) {
+                if (!obstacleRect) return {}
+                const width = rects.floating.width
+                const height = rects.floating.height
+                const rect = { left: x, top: y, right: x + width, bottom: y + height }
+                if (!overlapArea(rect, obstacleRect)) return {}
+                const options = [
+                  { x: obstacleRect.left - width - 8, y },
+                  { x: obstacleRect.right + 8, y },
+                  { x, y: obstacleRect.top - height - 8 },
+                  { x, y: obstacleRect.bottom + 8 },
+                ]
+                const valid = options.filter((point) =>
+                  point.x >= mapRect.left + 12 && point.x + width <= mapRect.right - 12 &&
+                  point.y >= mapRect.top + 12 && point.y + height <= mapRect.bottom - 12 &&
+                  (placement.startsWith("top") ? point.y + height <= rects.reference.y :
+                    placement.startsWith("bottom") ? point.y >= rects.reference.y :
+                    placement.startsWith("left") ? point.x + width <= rects.reference.x :
+                    point.x >= rects.reference.x)
+                ).sort((a, b) => Math.hypot(a.x - x, a.y - y) - Math.hypot(b.x - x, b.y - y))
+                if (!valid.length) return {}
+                return valid[0]
+              },
+            },
+            arrow({ element: pointer, padding: 10 }),
+          ],
+        })
+        const { width, height } = element.getBoundingClientRect()
+        const rect = { left: result.x, top: result.y, right: result.x + width, bottom: result.y + height }
+        const anchorPoint = map.latLngToContainerPoint(location)
+        const anchorX = mapRect.left + anchorPoint.x
+        const anchorY = mapRect.top + anchorPoint.y
+        const side = result.placement.split("-")[0]
+        const sideOverflow = side === "top" ? rect.bottom - (anchorY - 16) :
+          side === "bottom" ? anchorY + 16 - rect.top :
+          side === "left" ? rect.right - (anchorX - 16) : anchorX + 16 - rect.left
+        return {
+          result,
+          obstacleOverlap: obstacleRect ? overlapArea(rect, obstacleRect) : 0,
+          sideOverflow: Math.max(0, sideOverflow),
+          lineOverlap: segments.reduce((sum, segment) => sum + coveredConnectionLength(rect, segment), 0),
+        }
+      }))
+      candidates.sort((a, b) => a.obstacleOverlap - b.obstacleOverlap ||
+        a.sideOverflow - b.sideOverflow || a.lineOverlap - b.lineOverlap)
+      const { result } = candidates[0]
       if (currentRevision !== revision || popup !== activePopup) return
-      L.DomUtil.setPosition(element, L.point(result.x, result.y))
+      L.DomUtil.setPosition(element, map.containerPointToLayerPoint(
+        L.point(result.x - mapRect.left, result.y - mapRect.top)
+      ))
+      placedTransform = element.style.transform
       const side = result.placement.split("-")[0]
       const oppositeSide = { top: "bottom", bottom: "top", left: "right", right: "left" }[side]!
       const arrowPosition = result.middlewareData.arrow
@@ -360,9 +523,14 @@ function PopupPlacement() {
 
     function onOpen(event: L.PopupEvent) {
       observer.disconnect()
+      positionObserver.disconnect()
       activePopup = event.popup
       const element = activePopup.getElement()
-      if (element) observer.observe(element)
+      placedTransform = ""
+      if (element) {
+        observer.observe(element)
+        positionObserver.observe(element, { attributes: true, attributeFilter: ["style"] })
+      }
       void positionPopup()
     }
 
@@ -371,6 +539,7 @@ function PopupPlacement() {
       activePopup = null
       revision += 1
       observer.disconnect()
+      positionObserver.disconnect()
     }
 
     function onMapChange() {
@@ -380,13 +549,18 @@ function PopupPlacement() {
     map.on("popupopen", onOpen)
     map.on("popupclose", onClose)
     map.on("move zoomend resize", onMapChange)
+    map.on(CONNECTION_GEOMETRY_EVENT, onMapChange)
     return () => {
       revision += 1
       activePopup = null
       observer.disconnect()
+      positionObserver.disconnect()
+      obstacleObserver.disconnect()
+      shellObserver.disconnect()
       map.off("popupopen", onOpen)
       map.off("popupclose", onClose)
       map.off("move zoomend resize", onMapChange)
+      map.off(CONNECTION_GEOMETRY_EVENT, onMapChange)
     }
   }, [map])
 
@@ -431,6 +605,8 @@ function OpenSelectedMapSelectionPopup({
   selectionRevision,
   mapPopupRequest,
   clusterMarkers,
+  ready,
+  onPopupReady,
 }: {
   popupLocation: NystarLocationGroup | undefined
   markerRefs: RefObject<Map<string, L.Marker>>
@@ -438,12 +614,14 @@ function OpenSelectedMapSelectionPopup({
   selectionRevision: number
   mapPopupRequest: MapPopupRequest | null
   clusterMarkers: boolean
+  ready: boolean
+  onPopupReady?: () => void
 }) {
   const map = useMap()
 
   useLayoutEffect(() => {
     map.closePopup()
-    if (!popupLocation) {
+    if (!popupLocation || !ready) {
       return
     }
 
@@ -475,7 +653,10 @@ function OpenSelectedMapSelectionPopup({
     }
 
     function openPopup() {
-      if (!cancelled) marker!.openPopup()
+      if (!cancelled) {
+        marker!.openPopup()
+        onPopupReady?.()
+      }
     }
 
     const registration = window.setTimeout(revealMarker, 0)
@@ -484,8 +665,25 @@ function OpenSelectedMapSelectionPopup({
       window.clearTimeout(registration)
       group?.off("spiderfied", openPopup)
     }
-  }, [clusterRef, clusterMarkers, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision])
+  }, [clusterRef, clusterMarkers, popupLocation, map, markerRefs, mapPopupRequest, selectionRevision, ready, onPopupReady])
 
+  return null
+}
+
+function TourMapEvents({ exitRevision, onManualInteraction }: {
+  exitRevision: number
+  onManualInteraction: () => void
+}) {
+  const map = useMapEvents({ click: () => {
+    map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+    onManualInteraction()
+  } })
+  const previous = useRef(exitRevision)
+  useEffect(() => {
+    if (previous.current === exitRevision) return
+    previous.current = exitRevision
+    resetStatewideView(map)
+  }, [exitRevision, map])
   return null
 }
 
@@ -495,18 +693,25 @@ const CONNECTION_LINE_DURATION_MS = 1000
 function ConnectionLines({
   connections,
   locations,
+  selectedConnection,
+  onSelectConnection,
 }: {
   connections: RecentConnection[]
   locations: NystarLocationGroup[]
+  selectedConnection: RecentConnection | null
+  onSelectConnection: (connection: RecentConnection, position: L.LatLng) => void
 }) {
   const map = useMap()
   const lines = useMemo(() => {
     const assetPositions = new Map<string, L.LatLng>()
     const partnerPositions = new Map<string, L.LatLng>()
+    const names = new Map<string, string>()
     for (const location of locations) {
       const position = L.latLng(location.latitude, location.longitude)
       for (const asset of location.assets) assetPositions.set(asset.id, position)
       for (const customer of location.customers) partnerPositions.set(customer.id, position)
+      for (const asset of location.assets) names.set(`asset:${asset.id}`, asset.name)
+      for (const customer of location.customers) names.set(`partner:${customer.id}`, customer.name)
     }
     const seen = new Set<string>()
     return connections.flatMap((connection) => {
@@ -524,15 +729,32 @@ function ConnectionLines({
         from,
         to,
         desired: connection.connectionType === "Desired",
+        connection,
+        label: `${connection.connectionType} connection: ${names.get(`asset:${connection.fromAssetId}`)} and ${names.get(`${connection.to.kind}:${connection.to.id}`)}`,
       }]
     })
   }, [connections, locations])
   const linesRef = useRef(lines)
+  const onSelectRef = useRef(onSelectConnection)
+  const selectedRef = useRef(selectedConnection)
+  const polylinesRef = useRef<L.Polyline[]>([])
   const linesKey = lines.map((line) => line.key).join("|")
 
   useEffect(() => {
     linesRef.current = lines
-  }, [lines])
+    onSelectRef.current = onSelectConnection
+  }, [lines, onSelectConnection])
+
+  useEffect(() => {
+    selectedRef.current = selectedConnection
+    polylinesRef.current.forEach((polyline, index) => {
+      const line = linesRef.current[index]
+      polyline.getElement()?.classList.toggle(
+        "network-connection-line--selected",
+        !!selectedConnection && !!line && connectionKey(line.connection) === connectionKey(selectedConnection)
+      )
+    })
+  }, [selectedConnection, linesKey])
 
   useEffect(() => {
     const currentLines = linesRef.current
@@ -551,6 +773,48 @@ function ConnectionLines({
           : "network-connection-line",
       }).addTo(map)
     )
+    polylinesRef.current = polylines
+    polylines.forEach((polyline, index) => {
+      polyline.getElement()?.classList.toggle(
+        "network-connection-line--selected",
+        !!selectedRef.current && connectionKey(currentLines[index].connection) === connectionKey(selectedRef.current)
+      )
+    })
+    const hitTargets = currentLines.map((line) =>
+      L.polyline([line.from, line.to], {
+        pane: CONNECTION_LINE_PANE,
+        className: "network-connection-hit-target",
+        weight: 14,
+        opacity: 0,
+        bubblingMouseEvents: false,
+      }).on("click", (event: L.LeafletMouseEvent) => {
+        map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+        onSelectRef.current(line.connection, event.latlng)
+      }).addTo(map)
+    )
+    hitTargets.forEach((target, index) => {
+      const element = target.getElement()
+      if (!element) return
+      const line = currentLines[index]
+      element.setAttribute("tabindex", "0")
+      element.setAttribute("role", "button")
+      element.setAttribute("aria-label", line.label)
+      element.addEventListener("keydown", (event: Event) => {
+        if (!(event instanceof KeyboardEvent) || (event.key !== "Enter" && event.key !== " ")) return
+        L.DomEvent.stop(event)
+        map.eachLayer((layer) => { if (layer instanceof L.Popup) layer.remove() })
+        onSelectRef.current(line.connection, L.latLng(
+          (line.from.lat + line.to.lat) / 2,
+          (line.from.lng + line.to.lng) / 2
+        ))
+      })
+    })
+    const segments = connectionSegments.get(map) ?? new Map()
+    connectionSegments.set(map, segments)
+    polylines.forEach((polyline, index) => {
+      segments.set(polyline, { from: currentLines[index].from, to: currentLines[index].to })
+    })
+    map.fire(CONNECTION_GEOMETRY_EVENT)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
     const start = performance.now()
     let frame = 0
@@ -577,46 +841,14 @@ function ConnectionLines({
     return () => {
       cancelAnimationFrame(frame)
       polylines.forEach((polyline) => polyline.remove())
+      hitTargets.forEach((polyline) => polyline.remove())
+      polylinesRef.current = []
+      polylines.forEach((polyline) => segments.delete(polyline))
+      map.fire(CONNECTION_GEOMETRY_EVENT)
     }
   }, [map, linesKey])
 
   return null
-}
-
-function connectionsForPopup(
-  assetIds: Set<string>,
-  customerIds: Set<string>,
-  programConnections: NystarProgramConnection[],
-  locations: NystarLocationGroup[]
-): RecentConnection[] {
-  if (assetIds.size === 0 && customerIds.size === 0) return []
-  const connections: RecentConnection[] = []
-  for (const connection of programConnections) {
-    const [fromAssetId, toAssetId] = assetIds.has(connection.assetId1)
-      ? [connection.assetId1, connection.assetId2]
-      : [connection.assetId2, connection.assetId1]
-    if (!assetIds.has(fromAssetId)) continue
-    connections.push({
-      fromAssetId,
-      to: { kind: "asset", id: toAssetId },
-      connectionType: connection.connectionType,
-    })
-  }
-  for (const location of locations) {
-    for (const customer of location.customers) {
-      for (const connection of customer.connections) {
-        const fromAsset = assetIds.has(connection.assetId)
-        if (!fromAsset && !customerIds.has(customer.id)) continue
-        connections.push({
-          fromAssetId: connection.assetId,
-          to: { kind: "partner", id: customer.id },
-          connectionType: connection.connectionType,
-          animateFromTarget: !fromAsset,
-        })
-      }
-    }
-  }
-  return connections
 }
 
 function markerIcon(
@@ -655,10 +887,112 @@ function markerIcon(
   })
 }
 
+function InsetRegions({ geometry, activeRegion }: {
+  geometry: GeoJSON.GeoJsonObject
+  activeRegion: string
+}) {
+  const map = useMap()
+  useEffect(() => {
+    const pane = map.getPane("inset-regions") ?? map.createPane("inset-regions")
+    pane.style.zIndex = "300"
+    const layer = L.geoJSON(geometry, {
+      pane: "inset-regions",
+      interactive: false,
+      style: (feature) => ({
+        ...regionStyle(feature?.properties?.region_name?.trim() === activeRegion),
+        weight: feature?.properties?.region_name?.trim() === activeRegion ? 1.5 : 1,
+      }),
+    }).addTo(map)
+    function fitState() {
+      map.invalidateSize({ pan: false })
+      map.fitBounds(layer.getBounds(), { padding: [16, 16], animate: false })
+    }
+    fitState()
+    const observer = new ResizeObserver(fitState)
+    observer.observe(map.getContainer())
+    window.addEventListener("resize", fitState)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener("resize", fitState)
+      layer.remove()
+    }
+  }, [map, geometry, activeRegion])
+  return null
+}
+
+function TourInset({ geometry, activeRegion, assetId, locations, programConnections, error }: {
+  geometry: GeoJSON.GeoJsonObject | null
+  activeRegion: string
+  assetId: string
+  locations: NystarLocationGroup[]
+  programConnections: NystarProgramConnection[]
+  error: string | null
+}) {
+  const data = useMemo(
+    () => tourInsetData(assetId, programConnections, locations),
+    [assetId, programConnections, locations]
+  )
+  const positions = new Map<string, L.LatLngExpression>()
+  for (const location of data.locations) {
+    for (const asset of location.assets) positions.set(`asset:${asset.id}`, [location.latitude, location.longitude])
+    for (const customer of location.customers) positions.set(`partner:${customer.id}`, [location.latitude, location.longitude])
+  }
+  return (
+    <aside className="network-tour-inset" aria-label={`Statewide tour overview: ${activeRegion}`}>
+      <h2 className="network-tour-inset__heading">{activeRegion}</h2>
+      {error ? (
+        <p className="network-tour-inset__status" role="alert">{error}</p>
+      ) : !geometry ? (
+        <p className="network-tour-inset__status" role="status">Loading statewide overview...</p>
+      ) : (
+        <MapContainer
+          className="network-tour-inset__map"
+          center={DEFAULT_MAP_CENTER} zoom={5} zoomSnap={0}
+          zoomControl={false} attributionControl={false}
+          dragging={false} scrollWheelZoom={false} doubleClickZoom={false}
+          touchZoom={false} boxZoom={false} keyboard={false}
+        >
+          <InsetRegions geometry={geometry} activeRegion={activeRegion} />
+          {data.connections.map((connection) => (
+            <Polyline
+              key={connectionKey(connection)}
+              positions={[
+                positions.get(`asset:${connection.fromAssetId}`)!,
+                positions.get(`${connection.to.kind}:${connection.to.id}`)!,
+              ]}
+              interactive={false}
+              className={connection.connectionType === "Desired"
+                ? "network-connection-line network-connection-line--desired"
+                : "network-connection-line"}
+            />
+          ))}
+          {data.locations.flatMap((location) => [
+            ...location.assets.map((asset) => (
+              <Marker key={`asset:${asset.id}`}
+                position={[location.latitude, location.longitude]}
+                icon={markerIcon([asset.category], false)}
+                interactive={false} keyboard={false} zIndexOffset={asset.id === assetId ? 1000 : 0}
+              />
+            )),
+            ...location.customers.map((customer) => (
+              <Marker key={`partner:${customer.id}`}
+                position={[location.latitude, location.longitude]}
+                icon={markerIcon([], true)}
+                interactive={false} keyboard={false}
+              />
+            )),
+          ])}
+        </MapContainer>
+      )}
+    </aside>
+  )
+}
+
 export default function NystarLeafletMap({
   locations: groupedLocations,
   programConnections,
   selectedProgramId,
+  showAllConnections,
   selectedPartnerName,
   selectionRevision,
   showZoomControls,
@@ -669,11 +1003,17 @@ export default function NystarLeafletMap({
   recentConnections,
   popupDismissRevision,
   onConnectProgram,
+  onConnectPartner,
   onSelectItem,
+  activeTourRegion,
+  tourExitRevision,
+  onTourStatus,
+  onManualInteraction,
 }: {
   locations: NystarLocationGroup[]
   programConnections: NystarProgramConnection[]
   selectedProgramId: string
+  showAllConnections: boolean
   selectedPartnerName: string
   selectionRevision: number
   showZoomControls: boolean
@@ -684,8 +1024,29 @@ export default function NystarLeafletMap({
   recentConnections: RecentConnection[]
   popupDismissRevision: number
   onConnectProgram?: (programId: string) => void
+  onConnectPartner?: (partnerName: string) => void
   onSelectItem?: (item: MapItemSelection) => void
+  activeTourRegion: string | null
+  tourExitRevision: number
+  onTourStatus: (revision: number, error: string | null) => void
+  onManualInteraction: () => void
 }) {
+  const [regionGeometry, setRegionGeometry] = useState<GeoJSON.GeoJsonObject | null>(null)
+  const [regionStatus, setRegionStatus] = useState<{ region: string; error: string | null } | null>(null)
+  const onRegionStatus = useCallback((region: string, error: string | null) => {
+    setRegionStatus({ region, error })
+  }, [])
+  const tourRegionReady = regionStatus?.region === activeTourRegion && !regionStatus?.error
+  const onPopupReady = useCallback(() => {
+    if (activeTourRegion && regionStatus?.region === activeTourRegion && !regionStatus.error) {
+      onTourStatus(selectionRevision, null)
+    }
+  }, [activeTourRegion, onTourStatus, selectionRevision, regionStatus])
+  useEffect(() => {
+    if (activeTourRegion && regionStatus?.region === activeTourRegion && regionStatus.error) {
+      onTourStatus(selectionRevision, regionStatus.error)
+    }
+  }, [activeTourRegion, regionStatus, onTourStatus, selectionRevision])
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
   const locations = useMemo(
@@ -693,6 +1054,29 @@ export default function NystarLeafletMap({
     [clusterMarkers, groupedLocations]
   )
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
+  const [connectionSelection, setConnectionSelection] = useState<{
+    connection: RecentConnection
+    position: L.LatLng
+    revision: number
+    dismissRevision: number
+  } | null>(null)
+  const activeConnection = connectionSelection?.revision === selectionRevision &&
+    connectionSelection.dismissRevision === popupDismissRevision
+    ? connectionSelection : null
+  useEffect(() => {
+    clusterRef.current?.refreshClusters()
+  }, [activeConnection, clusterMarkers, selectionRevision])
+  const selectConnection = useCallback((connection: RecentConnection, position: L.LatLng) => {
+    onManualInteraction()
+    setConnectionSelection({ connection, position, revision: selectionRevision, dismissRevision: popupDismissRevision })
+  }, [onManualInteraction, selectionRevision, popupDismissRevision])
+  const connectionAssets = locations.flatMap((location) => location.assets).filter((asset) =>
+    activeConnection && (asset.id === activeConnection.connection.fromAssetId ||
+      (activeConnection.connection.to.kind === "asset" && asset.id === activeConnection.connection.to.id))
+  )
+  const connectionCustomers = locations.flatMap((location) => location.customers).filter((customer) =>
+    activeConnection?.connection.to.kind === "partner" && customer.id === activeConnection.connection.to.id
+  )
   const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
   const [popupDismissal, setPopupDismissal] = useState<{
     selectionRevision: number
@@ -742,12 +1126,16 @@ export default function NystarLeafletMap({
   const popupCustomerKey = [...popupCustomerIds].sort().join("|")
   const popupConnections = useMemo(
     () => connectionsForPopup(
-      new Set(popupAssetKey ? popupAssetKey.split("|") : []),
-      new Set(popupCustomerKey ? popupCustomerKey.split("|") : []),
+      new Set(showAllConnections
+        ? groupedLocations.flatMap((location) => location.assets.map((asset) => asset.id))
+        : popupAssetKey ? popupAssetKey.split("|") : []),
+      new Set(showAllConnections
+        ? groupedLocations.flatMap((location) => location.customers.map((customer) => customer.id))
+        : popupCustomerKey ? popupCustomerKey.split("|") : []),
       programConnections,
       groupedLocations
     ),
-    [popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
+    [showAllConnections, popupAssetKey, popupCustomerKey, programConnections, groupedLocations]
   )
   const markerPositions = useMemo(() => {
     const positions = new Map<string, L.LatLng>()
@@ -770,43 +1158,14 @@ export default function NystarLeafletMap({
     const customers = selectedOnly
       ? location.customers.filter((customer) => !selectedProgramId && customer.id === selectedCustomerId)
       : location.customers
-    const selected = locationKey(location) === selectedLocationKey
+    return { location, assets, customers }
+  })
+  function popupDetails(
+    assets: NystarLocationGroup["assets"],
+    customers: NystarLocationGroup["customers"],
+    showConnectionActions = true
+  ) {
     return (
-      <Marker
-        key={`${location.latitude}-${location.longitude}`}
-        eventHandlers={{
-          click: () => {
-            setMapPopupRequest({
-              locationKey: locationKey(location),
-              selectionRevision,
-            })
-            // Markers that group several items (clustering on) keep the full-location popup.
-            if (location.assets.length + location.customers.length !== 1) return
-            const [asset] = location.assets
-            const partnerName = location.customers[0]?.name.trim()
-            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
-            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
-          },
-        }}
-        ref={(marker) => {
-          const key = locationKey(location)
-          if (marker) {
-            markerItemCounts.set(marker, location.assets.length + location.customers.length)
-            markerRefs.current.set(key, marker)
-          }
-          else markerRefs.current.delete(key)
-        }}
-        position={markerPositions.get(locationKey(location))!}
-        zIndexOffset={selected ? 1000 : 0}
-        icon={location.assets.length + location.customers.length > 1
-          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
-          : markerIcon(
-          location.assets.map((asset) => asset.category),
-          location.customers.length > 0,
-          selected
-        )}
-      >
-        <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
           <div className="network-popup">
             <ul className="network-popup__assets">
               {assets.map((asset) => (
@@ -847,7 +1206,7 @@ export default function NystarLeafletMap({
                       .filter(Boolean)
                       .join(", ")}
                   </span>
-                  {onConnectProgram && (
+                  {showConnectionActions && onConnectProgram && (
                     <div className="network-popup__footer">
                       <Button
                         type="button"
@@ -890,20 +1249,61 @@ export default function NystarLeafletMap({
                       [customer.state, customer.zipCode].filter(Boolean).join(" "),
                     ].filter(Boolean).join(", ")}
                   </span>
-                  {customer.connections.map((connection) => (
-                    <span
-                      className="network-popup__category"
-                      key={connection.id}
-                    >
-                      {connection.connectionType}: {connection.assetName}
-                      {connection.hostOrganization &&
-                        ` · ${connection.hostOrganization}`}
-                    </span>
-                  ))}
+                  {showConnectionActions && onConnectPartner && (
+                    <div className="network-popup__footer">
+                      <Button
+                        type="button"
+                        variant="brand-link"
+                        size="inline"
+                        className="gap-1.5 text-xs [&_svg:not([class*='size-'])]:size-3.5"
+                        onClick={() => onConnectPartner(customer.name.trim())}
+                      >
+                        <Link data-icon="inline-start" />
+                        Add NYSTAR Connections
+                      </Button>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>
           </div>
+    )
+  }
+  const renderedMarkers = markers.map(({ location, assets, customers }) => {
+    const selected = activeConnection
+      ? location.assets.some((asset) => connectionAssets.some((item) => item.id === asset.id)) ||
+        location.customers.some((customer) => connectionCustomers.some((item) => item.id === customer.id))
+      : locationKey(location) === selectedLocationKey
+    return (
+      <Marker
+        key={locationKey(location)}
+        eventHandlers={{
+          click: () => {
+            setConnectionSelection(null)
+            onManualInteraction()
+            setMapPopupRequest({ locationKey: locationKey(location), selectionRevision })
+            if (location.assets.length + location.customers.length !== 1) return
+            const [asset] = location.assets
+            const partnerName = location.customers[0]?.name.trim()
+            if (asset) onSelectItem?.({ kind: "program", id: asset.id })
+            else if (partnerName) onSelectItem?.({ kind: "partner", name: partnerName })
+          },
+        }}
+        ref={(marker) => {
+          const key = locationKey(location)
+          if (marker) {
+            markerItemCounts.set(marker, location.assets.length + location.customers.length)
+            markerRefs.current.set(key, marker)
+          } else markerRefs.current.delete(key)
+        }}
+        position={markerPositions.get(locationKey(location))!}
+        zIndexOffset={selected ? 1000 : 0}
+        icon={location.assets.length + location.customers.length > 1
+          ? numberedMarkerIcon(location.assets.length + location.customers.length, selected)
+          : markerIcon(location.assets.map((asset) => asset.category), location.customers.length > 0, selected)}
+      >
+        <Popup autoPan={false} closeButton={false} className="network-positioned-popup">
+          {popupDetails(assets, customers)}
         </Popup>
       </Marker>
     )
@@ -929,16 +1329,23 @@ export default function NystarLeafletMap({
     >
       <InvalidateMapSize />
       <PopupPlacement />
-      <MapZoomControls enabled={showZoomControls} />
-      <RecenterMapOnSidebarClose />
-      <MepRegionsLayer showRegionLabels={showRegionLabels} />
+      <MapZoomControls enabled={showZoomControls} touring={!!activeTourRegion} />
+      <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
+      <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={() => {
+        setConnectionSelection(null)
+        onManualInteraction()
+      }} />
+      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion}
+        onRegionStatus={onRegionStatus} onGeometry={setRegionGeometry} />
       <OpenSelectedMapSelectionPopup
-        popupLocation={popupLocation}
+        popupLocation={activeConnection ? undefined : popupLocation}
         markerRefs={markerRefs}
         clusterRef={clusterRef}
         selectionRevision={selectionRevision}
         mapPopupRequest={mapPopupRequest}
         clusterMarkers={clusterMarkers}
+        ready={!activeTourRegion || tourRegionReady}
+        onPopupReady={onPopupReady}
       />
       {clusterMarkers ? (
         <MarkerClusterGroup
@@ -951,16 +1358,27 @@ export default function NystarLeafletMap({
           animate={false}
           spiderLegPolylineOptions={{ color: "var(--network-city-label)", weight: 1, opacity: 0.7 }}
         >
-          {markers}
+          {renderedMarkers}
         </MarkerClusterGroup>
-      ) : markers}
+      ) : renderedMarkers}
+      {activeConnection && (
+        <Popup key={`${connectionKey(activeConnection.connection)}:${activeConnection.position.toString()}`}
+          position={activeConnection.position} autoPan={false} closeButton={false}
+          className="network-positioned-popup">
+          {popupDetails(connectionAssets, connectionCustomers, false)}
+        </Popup>
+      )}
       <ConnectionLines
         connections={popupConnections}
         locations={locations}
+        selectedConnection={activeConnection?.connection ?? null}
+        onSelectConnection={selectConnection}
       />
       <ConnectionLines
         connections={recentConnections}
         locations={locations}
+        selectedConnection={activeConnection?.connection ?? null}
+        onSelectConnection={selectConnection}
       />
       <Pane
         name="city-labels"
@@ -982,8 +1400,17 @@ export default function NystarLeafletMap({
         ))}
       </Pane>
       </MapContainer>
-        {showMapLegend && (
+        {activeTourRegion && (
+          <TourInset geometry={regionGeometry} activeRegion={activeTourRegion}
+            assetId={selectedProgramId} locations={groupedLocations}
+            programConnections={programConnections}
+            error={regionStatus?.region === activeTourRegion ? regionStatus.error : null} />
+        )}
+        {showMapLegend && !activeTourRegion && (
           <aside className="network-map-legend" aria-label="Map legend">
+            <div className="network-map-legend__logo">
+              <Image src="/nystar-logo.svg" alt="NYSTAR" width={910} height={310} loading="eager" />
+            </div>
             <h2 className="network-map-legend__title">NYSTAR Programs</h2>
             <ul className="network-map-legend__items">
               {mapCategories.map((category) => (

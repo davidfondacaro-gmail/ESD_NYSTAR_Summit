@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { useState, type ChangeEvent, type FormEvent } from "react"
-import { ChevronRight, Plus, X } from "lucide-react"
+import { ChevronRight, Plus } from "lucide-react"
 
 import OrganizationDetailsFields, {
   emptyOrganizationDetails,
@@ -72,6 +72,8 @@ export default function AddConnectionsDrawer({
   trigger,
   existingPartnerName,
   connectedAssetIds,
+  open,
+  onOpenChange,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
@@ -81,6 +83,8 @@ export default function AddConnectionsDrawer({
   trigger?: React.ReactElement
   existingPartnerName?: string
   connectedAssetIds?: string[]
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
 }) {
   const router = useRouter()
   const [drawerOpen, setDrawerOpen] = useState(false)
@@ -329,9 +333,10 @@ export default function AddConnectionsDrawer({
 
   return (
     <Drawer
-      open={drawerOpen}
+      open={open ?? drawerOpen}
       onOpenChange={(open) => {
         setDrawerOpen(open)
+        onOpenChange?.(open)
         if (open) onStart?.()
         if (!open) resetForm()
       }}
@@ -355,7 +360,7 @@ export default function AddConnectionsDrawer({
       )}
       <DrawerContent className="w-[min(30rem,92vw)]">
         <DrawerHeader className="relative px-6 pt-7 pb-5">
-          <DrawerTitle className="text-lg">
+          <DrawerTitle>
             {existingPartnerName
               ? `Add NYSTAR Connections for ${existingPartnerName}`
               : "Add Your Company"}
@@ -388,18 +393,6 @@ export default function AddConnectionsDrawer({
               <ChevronRight data-icon="inline-end" />
             </Button>
           )}
-          <DrawerClose
-            render={
-              <Button
-                variant="ghost"
-                size="icon"
-                className="absolute top-3 right-4"
-                aria-label="Close drawer"
-              />
-            }
-          >
-            <X aria-hidden="true" />
-          </DrawerClose>
         </DrawerHeader>
         <form
           className="flex min-h-0 flex-1 flex-col"

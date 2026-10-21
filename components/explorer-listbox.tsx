@@ -1,11 +1,13 @@
 "use client"
 
 import { Fragment, useEffect, useId, useRef, useState } from "react"
+import { Separator } from "@/components/ui/separator"
 
 type ExplorerListboxOption = {
   value: string
   label: string
   group?: string
+  separatorAfter?: boolean
 }
 
 export default function ExplorerListbox({
@@ -124,27 +126,29 @@ export default function ExplorerListbox({
   function renderOption(option: ExplorerListboxOption) {
     const optionIndex = options.indexOf(option)
     return (
-      <div
-        key={option.value}
-        id={`${listboxId}-option-${optionIndex}`}
-        ref={(element) => {
-          if (element) optionRefs.current.set(option.value, element)
-          else optionRefs.current.delete(option.value)
-        }}
-        role="option"
-        aria-selected={option.value === value}
-        data-active={option.value === activeOptionValue}
-        className="network-listbox-option flex min-h-6 cursor-pointer items-center rounded-sm px-2 py-0.5 leading-5"
-        title={option.label}
-        onMouseDown={(event) => event.preventDefault()}
-        onClick={() => {
-          setActiveValue(option.value)
-          onValueChange(option.value)
-          listboxRef.current?.focus()
-        }}
-      >
-        <span className="min-w-0 flex-1 truncate">{option.label}</span>
-      </div>
+      <Fragment key={option.value}>
+        <div
+          id={`${listboxId}-option-${optionIndex}`}
+          ref={(element) => {
+            if (element) optionRefs.current.set(option.value, element)
+            else optionRefs.current.delete(option.value)
+          }}
+          role="option"
+          aria-selected={option.value === value}
+          data-active={option.value === activeOptionValue}
+          className="network-listbox-option flex min-h-6 cursor-pointer items-center rounded-sm px-2 py-0.5 leading-5"
+          title={option.label}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            setActiveValue(option.value)
+            onValueChange(option.value)
+            listboxRef.current?.focus()
+          }}
+        >
+          <span className="min-w-0 flex-1 truncate">{option.label}</span>
+        </div>
+        {option.separatorAfter && <Separator className="my-1" />}
+      </Fragment>
     )
   }
 

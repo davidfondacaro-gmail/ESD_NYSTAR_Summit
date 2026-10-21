@@ -15,6 +15,7 @@ import type {
 } from "@/lib/nystar-locations"
 
 type ProgramGrouping = "alpha" | "type" | "region"
+export const SHOW_ALL_CONNECTIONS = "__show-all-connections__"
 
 function comparePrograms(
   left: NystarProgramOption,
@@ -32,12 +33,14 @@ export default function NystarProgramPicker({
   labelledBy,
   value,
   onValueChange,
+  includeAllConnections = false,
 }: {
   categories: NystarProgramGroup[]
   regions: NystarProgramGroup[]
   labelledBy: string
   value: string
   onValueChange: (value: string) => void
+  includeAllConnections?: boolean
 }) {
   const [grouping, setGrouping] = useState<ProgramGrouping>("alpha")
   const programs = categories
@@ -97,7 +100,18 @@ export default function NystarProgramPicker({
       </div>
       <ExplorerListbox
         labelledBy={labelledBy}
-        options={options}
+        options={
+          includeAllConnections
+            ? [
+                {
+                  value: SHOW_ALL_CONNECTIONS,
+                  label: "Show All Connections",
+                  separatorAfter: true,
+                },
+                ...options,
+              ]
+            : options
+        }
         value={value}
         visibleRows={9}
         onValueChange={onValueChange}

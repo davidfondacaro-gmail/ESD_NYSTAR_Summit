@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type CSSProperties } from "react"
 import { useRouter } from "next/navigation"
-import { Info, Link, X } from "lucide-react"
+import { Info, Link } from "lucide-react"
 
 import InnovationPartnerPicker, {
   type PartnerRegionGroup,
@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+import { Separator } from "@/components/ui/separator"
 import { SIDEBAR_WIDTH } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
@@ -318,7 +319,7 @@ export default function ConnectProgramDrawer({
       </DrawerTrigger>
       <DrawerContent style={{ width: SIDEBAR_WIDTH }}>
         <DrawerHeader className="relative px-6 pt-7 pb-5">
-          <DrawerTitle ref={titleRef} tabIndex={-1} className="pr-8">
+          <DrawerTitle ref={titleRef} tabIndex={-1}>
             {isReview
               ? "Review Connection"
               : isAddingPartner
@@ -331,19 +332,6 @@ export default function ConnectProgramDrawer({
           {!isReview && !isAddingPartner && sourceProgram && (
             <ProgramType category={sourceProgram.category} />
           )}
-          <DrawerClose
-            render={
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="absolute top-3 right-4"
-                aria-label="Close drawer"
-              />
-            }
-          >
-            <X aria-hidden="true" />
-          </DrawerClose>
         </DrawerHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
           <FieldGroup
@@ -470,7 +458,15 @@ export default function ConnectProgramDrawer({
                     <ProgramType category={sourceProgram.category} />
                   )}
                 </div>
-                <p className="text-muted-foreground">and</p>
+                <div className="my-3 flex items-center">
+                  <div className="w-7 shrink-0">
+                    <Separator />
+                  </div>
+                  <span className="rounded-sm bg-muted px-2 py-1 text-sm text-foreground">
+                    and
+                  </span>
+                  <Separator className="min-w-0 flex-1" />
+                </div>
                 {connectionType === "nystar-to-nystar" && targetProgram && (
                   <div className="flex flex-col gap-1">
                     <p>{targetProgram.name}</p>
@@ -484,7 +480,14 @@ export default function ConnectProgramDrawer({
                         ? newPartner.organizationName.trim()
                         : targetPartnerName}
                     </p>
-                    {isAddingPartner ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span
+                        className="network-map-legend__dot shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>Innovation Partner</span>
+                    </div>
+                    {isAddingPartner && (
                       <p className="text-sm text-muted-foreground">
                         {newPartner.addressLine1.trim()}
                         {newPartner.addressLine2.trim() &&
@@ -493,18 +496,15 @@ export default function ConnectProgramDrawer({
                         {newPartner.city.trim()}, NY{" "}
                         {newPartner.postalCode.trim()}
                       </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Innovation Partner
-                      </p>
                     )}
                   </div>
                 )}
               </div>
+              <Separator />
               <p>
                 {connectionStatus === "existing"
-                  ? "This is a past/existing connection"
-                  : "This is a new/desired connection"}
+                  ? "This is a past/existing connection."
+                  : "This is a new/desired connection."}
               </p>
               {isDesired && (
                 <FieldGroup className="gap-4 border-t border-border pt-4">
