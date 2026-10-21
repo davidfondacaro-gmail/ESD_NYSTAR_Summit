@@ -471,7 +471,14 @@ export default function ConnectProgramDrawer({
                         ? newPartner.organizationName.trim()
                         : targetPartnerName}
                     </p>
-                    {isAddingPartner ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <span
+                        className="network-map-legend__dot shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>Innovation Partner</span>
+                    </div>
+                    {isAddingPartner && (
                       <p className="text-sm text-muted-foreground">
                         {newPartner.addressLine1.trim()}
                         {newPartner.addressLine2.trim() &&
@@ -479,10 +486,6 @@ export default function ConnectProgramDrawer({
                         <br />
                         {newPartner.city.trim()}, NY{" "}
                         {newPartner.postalCode.trim()}
-                      </p>
-                    ) : (
-                      <p className="text-sm text-muted-foreground">
-                        Innovation Partner
                       </p>
                     )}
                   </div>
