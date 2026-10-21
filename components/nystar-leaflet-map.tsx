@@ -1,6 +1,7 @@
 "use client"
 
 import L from "leaflet"
+import Image from "next/image"
 import { arrow, computePosition, offset, platform, shift, type Placement } from "@floating-ui/dom"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
 import MarkerClusterGroup from "react-leaflet-cluster"
@@ -1407,6 +1408,9 @@ export default function NystarLeafletMap({
         )}
         {showMapLegend && !activeTourRegion && (
           <aside className="network-map-legend" aria-label="Map legend">
+            <div className="network-map-legend__logo">
+              <Image src="/nystar-logo.svg" alt="NYSTAR" width={910} height={310} loading="eager" />
+            </div>
             <h2 className="network-map-legend__title">NYSTAR Programs</h2>
             <ul className="network-map-legend__items">
               {mapCategories.map((category) => (
