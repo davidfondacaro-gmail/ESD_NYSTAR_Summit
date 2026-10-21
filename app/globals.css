@@ -476,6 +476,40 @@ body {
   transform: translate(-50%, -50%);
 }
 
+.network-sidebar-views {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.network-sidebar-view {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  transition: transform 240ms ease;
+}
+
+.network-sidebar-view--settings {
+  transform: translateX(100%);
+}
+
+.network-sidebar-views[data-settings="true"] .network-sidebar-view--main {
+  transform: translateX(-100%);
+}
+
+.network-sidebar-views[data-settings="true"] .network-sidebar-view--settings {
+  transform: translateX(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .network-sidebar-view {
+    transition: none;
+  }
+}
+
 .network-map-legend {
   position: absolute;
   z-index: 500;
