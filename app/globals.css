@@ -296,6 +296,65 @@ body {
   flex: 1;
   min-width: 0;
   min-height: 0;
+  container-type: inline-size;
+}
+
+.network-tour-inset {
+  position: absolute;
+  z-index: 700;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  flex-direction: column;
+  width: min(280px, calc(100% - 24px));
+  height: 210px;
+  overflow: hidden;
+  border: 1px solid var(--network-control-border);
+  border-radius: 8px;
+  background: var(--network-map-bg);
+  box-shadow: var(--network-map-shadow);
+  color: var(--network-ink);
+}
+
+.network-tour-inset__heading {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.network-tour-inset__map {
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  background: var(--network-map-bg);
+}
+
+.network-tour-inset .nystar-marker__star {
+  width: 8px;
+  height: 8px;
+  border: 0;
+  background: var(--marker-color);
+}
+
+.network-tour-inset .nystar-marker__partner-dot {
+  width: 6px;
+  height: 6px;
+}
+
+.network-tour-inset__status {
+  padding: 10px;
+  font-size: 12px;
+}
+
+@container (max-width: 600px) {
+  .network-tour-inset {
+    top: 8px;
+    right: 8px;
+    width: min(210px, calc(100% - 16px));
+    height: 160px;
+  }
 }
 
 .network-map-sidebar-trigger {

@@ -614,6 +614,7 @@ export default function NetworkExplorerPanel({
                 <AlertDescription>
                   Select a region to start. Next advances one program; Auto
                   displays each program and its popup for 8 seconds.
+                  The statewide inset shows the current program and its connections.
                 </AlertDescription>
               </Alert>
               <ExplorerListbox
