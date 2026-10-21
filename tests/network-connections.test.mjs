@@ -1,6 +1,7 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  connectedOrganizationsForPopup,
   connectionKey,
   connectionsForPopup,
   tourInsetData,
@@ -107,4 +108,49 @@ test("shared collector preserves normal program and partner popup connection sco
     locations
   )
   assert.ok(program.every((c) => c.fromAssetId === "a"))
+})
+
+test("program popup lists unique direct organizations with only name and symbol data", () => {
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "asset", id: "a" },
+      programConnections,
+      locations
+    ),
+    [
+      { id: "b", kind: "asset", name: "b", category: "Test" },
+      { id: "local", kind: "partner", name: "local" },
+      { id: "remote", kind: "partner", name: "remote" },
+    ]
+  )
+})
+
+test("partner popup lists only its connected programs with category symbols", () => {
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "partner", id: "local" },
+      programConnections,
+      locations
+    ),
+    [
+      { id: "a", kind: "asset", name: "a", category: "Test" },
+      { id: "b", kind: "asset", name: "b", category: "Test" },
+    ]
+  )
+  assert.equal(
+    connectedOrganizationsForPopup(
+      { kind: "partner", id: "remote" },
+      programConnections,
+      locations
+    ).length,
+    1
+  )
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "asset", id: "isolated" },
+      programConnections,
+      locations
+    ),
+    []
+  )
 })

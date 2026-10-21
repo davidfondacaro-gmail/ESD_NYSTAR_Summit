@@ -26,7 +26,7 @@ import type {
 } from "@/lib/nystar-locations"
 import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
-import { connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
+import { connectedOrganizationsForPopup, connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.5
@@ -1160,6 +1160,29 @@ export default function NystarLeafletMap({
       : location.customers
     return { location, assets, customers }
   })
+  function popupConnectionsList(point: { kind: "asset" | "partner"; id: string }) {
+    const organizations = connectedOrganizationsForPopup(point, programConnections, groupedLocations)
+    if (organizations.length === 0) return null
+    return (
+      <section className="network-popup__connections" aria-label="Connected organizations">
+        <h3 className="network-popup__primary">Connections</h3>
+        <ul className="network-popup__connection-list">
+          {organizations.map((organization) => (
+            <li className="network-popup__connection" key={`${organization.kind}:${organization.id}`}>
+              <span
+                className={organization.kind === "asset" ? "network-popup__diamond" : "network-popup__dot"}
+                style={organization.kind === "asset" ? {
+                  "--marker-color": CATEGORY_COLORS[organization.category ?? ""] ?? "var(--network-customer-marker)",
+                } as React.CSSProperties : undefined}
+                aria-hidden="true"
+              />
+              <span>{organization.name}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )
+  }
   function popupDetails(
     assets: NystarLocationGroup["assets"],
     customers: NystarLocationGroup["customers"],
@@ -1206,6 +1229,7 @@ export default function NystarLeafletMap({
                       .filter(Boolean)
                       .join(", ")}
                   </span>
+                  {showConnectionActions && popupConnectionsList({ kind: "asset", id: asset.id })}
                   {showConnectionActions && onConnectProgram && (
                     <div className="network-popup__footer">
                       <Button
@@ -1249,6 +1273,7 @@ export default function NystarLeafletMap({
                       [customer.state, customer.zipCode].filter(Boolean).join(" "),
                     ].filter(Boolean).join(", ")}
                   </span>
+                  {showConnectionActions && popupConnectionsList({ kind: "partner", id: customer.id })}
                   {showConnectionActions && onConnectPartner && (
                     <div className="network-popup__footer">
                       <Button

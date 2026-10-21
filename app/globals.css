@@ -771,6 +771,29 @@ body {
   padding-top: 8px;
 }
 
+.network-popup__connections {
+  margin-top: 8px;
+  border-top: 1px solid var(--network-popup-border);
+  padding-top: 8px;
+}
+
+.network-popup__connection-list {
+  display: grid;
+  gap: 6px;
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.network-popup__connection-list .network-popup__connection {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
 @keyframes map-appear {
   from {
     opacity: 0.65;
