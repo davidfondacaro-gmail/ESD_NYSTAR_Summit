@@ -1,16 +1,10 @@
 "use client"
 
 import { useEffect, useId, useRef, useSyncExternalStore } from "react"
-import { ArrowLeft, Settings, Table2 } from "lucide-react"
+import { ArrowLeft, ExternalLink, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import {
   Field,
   FieldGroup,
@@ -111,7 +105,7 @@ export default function NetworkSettings({
         </h2>
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
-        <FieldGroup>
+        <FieldGroup className="gap-8">
           {groups.map((group) => (
             <FieldSet key={group.title}>
               <FieldLegend>{group.title}</FieldLegend>
@@ -137,30 +131,27 @@ export default function NetworkSettings({
           ))}
           <FieldSet>
             <FieldLegend>Data</FieldLegend>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={<Button type="button" variant="outline" />}
-              >
-                <Table2 data-icon="inline-start" />
-                Data tables
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-72">
-                {(Object.keys(DATA_TABLES) as DataTableId[]).map((tableId) => (
-                  <DropdownMenuItem
-                    key={tableId}
-                    render={
-                      <a
-                        href={`/data/${tableId}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    }
-                  >
-                    View {DATA_TABLES[tableId].title}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            <FieldGroup className="items-start gap-4">
+              {(Object.keys(DATA_TABLES) as DataTableId[]).map((tableId) => (
+                <Button
+                  key={tableId}
+                  variant="brand-link"
+                  size="inline"
+                  className="max-w-full gap-1.5 whitespace-normal text-left"
+                  nativeButton={false}
+                  render={
+                    <a
+                      href={`/data/${tableId}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    />
+                  }
+                >
+                  View {DATA_TABLES[tableId].title}
+                  <ExternalLink data-icon="inline-end" aria-hidden="true" />
+                </Button>
+              ))}
+            </FieldGroup>
           </FieldSet>
         </FieldGroup>
       </div>
