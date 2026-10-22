@@ -1005,6 +1005,8 @@ export default function NystarLeafletMap({
   onConnectProgram,
   onConnectPartner,
   onSelectItem,
+  onPointClick,
+  onClearSelection,
   activeTourRegion,
   tourExitRevision,
   onTourStatus,
@@ -1026,6 +1028,8 @@ export default function NystarLeafletMap({
   onConnectProgram?: (programId: string) => void
   onConnectPartner?: (partnerName: string) => void
   onSelectItem?: (item: MapItemSelection) => void
+  onPointClick: () => void
+  onClearSelection: () => void
   activeTourRegion: string | null
   tourExitRevision: number
   onTourStatus: (revision: number, error: string | null) => void
@@ -1305,6 +1309,7 @@ export default function NystarLeafletMap({
         eventHandlers={{
           click: () => {
             setConnectionSelection(null)
+            onPointClick()
             onManualInteraction()
             setMapPopupRequest({ locationKey: locationKey(location), selectionRevision })
             if (location.assets.length + location.customers.length !== 1) return
@@ -1358,7 +1363,8 @@ export default function NystarLeafletMap({
       <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
       <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={() => {
         setConnectionSelection(null)
-        onManualInteraction()
+        setMapPopupRequest(null)
+        onClearSelection()
       }} />
       <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion}
         onRegionStatus={onRegionStatus} onGeometry={setRegionGeometry} />

@@ -338,6 +338,7 @@ export default function NetworkExplorerPanel({
   }
   function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
     interruptTour()
+    setRecentConnections([])
     if (item.kind === "program") {
       setSelectedProgramId(item.id)
       setSelectedPartnerName("")
@@ -349,6 +350,13 @@ export default function NetworkExplorerPanel({
     if (sidebarExpanded) {
       selectSection(item.kind === "program" ? "program" : "partner")
     }
+  }
+  function clearMapSelection() {
+    interruptTour()
+    setRecentConnections([])
+    setSelectedProgramId("")
+    setSelectedPartnerName("")
+    setSelectionRevision((revision) => revision + 1)
   }
   const tourStops = useMemo(
     () => buildTourStops(regions, locations),
@@ -508,6 +516,7 @@ export default function NetworkExplorerPanel({
                   value={selectedProgramId}
                   onValueChange={(value) => {
                     interruptTour()
+                    setRecentConnections([])
                     setSelectedProgramId(value)
                     setSelectedPartnerName("")
                     setSelectionRevision((revision) => revision + 1)
@@ -561,6 +570,7 @@ export default function NetworkExplorerPanel({
                     value={selectedPartnerName}
                     onValueChange={(value) => {
                       interruptTour()
+                      setRecentConnections([])
                       setSelectedPartnerName(value)
                       setSelectedProgramId("")
                       setSelectionRevision((revision) => revision + 1)
@@ -783,6 +793,8 @@ export default function NetworkExplorerPanel({
           onConnectProgram={connectFromMap}
           onConnectPartner={connectPartnerFromMap}
           onSelectItem={selectFromMap}
+          onPointClick={() => setRecentConnections([])}
+          onClearSelection={clearMapSelection}
           locations={locations}
           programConnections={programConnections}
           selectedProgramId={selectedProgramId}
