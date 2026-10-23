@@ -289,6 +289,7 @@ export default function NetworkExplorerPanel({
   const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
+  const [showInstructions, setShowInstructions] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const mainPanelRef = useRef<HTMLDivElement>(null)
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
@@ -501,13 +502,15 @@ export default function NetworkExplorerPanel({
                 open={openSection === "program"}
                 onOpenChange={(open) => selectSection(open ? "program" : null)}
               >
-                <Alert className="border-sidebar-border bg-transparent">
-                  <Info aria-hidden="true" />
-                  <AlertDescription>
-                    Select a NYSTAR program to view its connections, or select
-                    Show All Connections to view the full network.
-                  </AlertDescription>
-                </Alert>
+                {showInstructions && (
+                  <Alert className="border-sidebar-border bg-transparent">
+                    <Info aria-hidden="true" />
+                    <AlertDescription>
+                      Select a NYSTAR program to view its connections, or select
+                      Show All Connections to view the full network.
+                    </AlertDescription>
+                  </Alert>
+                )}
                 <NystarProgramPicker
                   includeAllConnections
                   categories={categories}
@@ -556,13 +559,15 @@ export default function NetworkExplorerPanel({
                     selectSection(open ? "partner" : null)
                   }
                 >
-                  <Alert className="border-sidebar-border bg-transparent">
-                    <Info aria-hidden="true" />
-                    <AlertDescription>
-                      Select an innovation partner to view its connections on
-                      the map.
-                    </AlertDescription>
-                  </Alert>
+                  {showInstructions && (
+                    <Alert className="border-sidebar-border bg-transparent">
+                      <Info aria-hidden="true" />
+                      <AlertDescription>
+                        Select an innovation partner to view its connections on
+                        the map.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <InnovationPartnerPicker
                     partners={innovationPartners}
                     regionGroups={partnerRegionGroups}
@@ -630,21 +635,27 @@ export default function NetworkExplorerPanel({
                   open={openSection === "tour"}
                   onOpenChange={(open) => selectSection(open ? "tour" : null)}
                 >
-                  <Alert className="border-sidebar-border bg-transparent">
-                    <Info aria-hidden="true" />
-                    <AlertDescription>
-                      Select a region to start. Next advances one program; Auto
-                      displays each program and its popup for 4 seconds. The
-                      statewide inset shows the current program and its
-                      connections.
-                    </AlertDescription>
-                  </Alert>
+                  {showInstructions && (
+                    <Alert className="border-sidebar-border bg-transparent">
+                      <Info aria-hidden="true" />
+                      <AlertDescription>
+                        Select a region, then choose Start Tour. Next advances
+                        one program; Auto displays each program and its popup
+                        for 4 seconds. The statewide inset shows the current
+                        program and its connections.
+                      </AlertDescription>
+                    </Alert>
+                  )}
                   <ExplorerListbox
                     labelledBy="guided-tour-heading"
                     options={tourRegionOptions}
                     value={tourStop?.region ?? tour.scope}
                     visibleRows={6}
-                    onValueChange={startTour}
+                    onValueChange={(scope) =>
+                      tour.started
+                        ? startTour(scope)
+                        : setTour({ ...tour, scope, index: 0 })
+                    }
                   />
                   {tour.started && !tourStop && (
                     <p className="text-sm text-muted-foreground">
@@ -766,6 +777,11 @@ export default function NetworkExplorerPanel({
                     }
                   }
                 },
+              },
+              {
+                label: "Instructions",
+                checked: showInstructions,
+                onCheckedChange: setShowInstructions,
               },
               {
                 label: "Guided tour",
