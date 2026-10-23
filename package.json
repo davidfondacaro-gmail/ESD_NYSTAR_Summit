@@ -10,7 +10,8 @@
     "lint": "eslint",
     "format": "prettier --write \"**/*.{ts,tsx}\"",
     "typecheck": "tsc --noEmit",
-    "enrich:nystar-map": "node scripts/enrich-nystar-map-layer.mjs"
+    "enrich:nystar-map": "node scripts/enrich-nystar-map-layer.mjs",
+    "generate:ny-zip-codes": "node scripts/generate-ny-zip-codes.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",

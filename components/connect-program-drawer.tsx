@@ -42,6 +42,7 @@ import { toast } from "@/components/ui/toast"
 import { categoryColor } from "@/lib/nystar-category-colors"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { existingConnectionTargets } from "@/lib/network-connections"
+import { postalCodeError } from "@/lib/ny-zip-codes"
 import type { RecentConnection } from "@/lib/recent-connection"
 import type {
   NystarLocationGroup,
@@ -192,7 +193,8 @@ export default function ConnectProgramDrawer({
     !newPartnerNameTaken &&
     Boolean(newPartner.addressLine1.trim()) &&
     Boolean(newPartner.city.trim()) &&
-    /^\d{5}$/.test(newPartner.postalCode.trim())
+    Boolean(newPartner.postalCode.trim()) &&
+    !postalCodeError(newPartner.postalCode)
   const canReview =
     hasConnectionStatus &&
     (isAddingPartner

@@ -46,6 +46,7 @@ import {
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { cn } from "@/lib/utils"
+import { postalCodeError } from "@/lib/ny-zip-codes"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 type GroupingMode = "type" | "region"
@@ -161,7 +162,7 @@ export default function AddConnectionsDrawer({
     }
     setFormError("")
     if (step === 1) {
-      if (organizationNameTaken) return
+      if (organizationNameTaken || postalCodeError(details.postalCode)) return
       setStep(2)
     } else if (step === 2) {
       setSkippedConnections(false)
@@ -793,7 +794,10 @@ export default function AddConnectionsDrawer({
                   variant="brand"
                   size="lg"
                   className="min-w-24"
-                  disabled={organizationNameTaken}
+                  disabled={
+                    organizationNameTaken ||
+                    Boolean(postalCodeError(details.postalCode))
+                  }
                 >
                   Next
                 </Button>
