@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react"
+import { useState, type ChangeEvent } from "react"
 
 import {
   Field,
@@ -7,6 +7,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field"
 import { Input } from "@/components/ui/input"
+import { postalCodeError } from "@/lib/ny-zip-codes"
 
 export type OrganizationDetails = {
   organizationName: string
@@ -38,6 +39,11 @@ export default function OrganizationDetailsFields({
   organizationNameError?: string
 }) {
   const fieldId = (name: string) => `${idPrefix}${name}`
+  const [postalCodeTouched, setPostalCodeTouched] = useState(false)
+  const zipError =
+    postalCodeTouched || details.postalCode.trim().length >= 5
+      ? postalCodeError(details.postalCode)
+      : ""
 
   return (
     <FieldGroup className="gap-4">
@@ -131,7 +137,7 @@ export default function OrganizationDetailsFields({
               required
             />
           </Field>
-          <Field>
+          <Field data-invalid={Boolean(zipError)}>
             <FieldLabel
               className="drawer-field-label"
               htmlFor={fieldId("postal-code")}
@@ -143,10 +149,21 @@ export default function OrganizationDetailsFields({
               name="postalCode"
               autoComplete="postal-code"
               inputMode="numeric"
+              maxLength={5}
               value={details.postalCode}
               onChange={onChange}
+              onBlur={() => setPostalCodeTouched(true)}
+              aria-invalid={Boolean(zipError)}
+              aria-describedby={
+                zipError ? fieldId("postal-code-error") : undefined
+              }
               required
             />
+            {zipError && (
+              <FieldError id={fieldId("postal-code-error")}>
+                {zipError}
+              </FieldError>
+            )}
           </Field>
         </FieldGroup>
       </FieldGroup>

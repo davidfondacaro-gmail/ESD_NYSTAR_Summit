@@ -2,13 +2,14 @@
 
 import { useRouter } from "next/navigation"
 import { useState, type ChangeEvent, type FormEvent } from "react"
-import { ChevronRight, Plus } from "lucide-react"
+import { ChevronRight, Plus, TriangleAlert } from "lucide-react"
 
 import OrganizationDetailsFields, {
   emptyOrganizationDetails,
   type OrganizationDetails,
 } from "@/components/organization-details-fields"
 import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Collapsible,
@@ -45,6 +46,7 @@ import {
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { cn } from "@/lib/utils"
+import { postalCodeError } from "@/lib/ny-zip-codes"
 import type { RecentConnection } from "@/lib/recent-connection"
 
 type GroupingMode = "type" | "region"
@@ -154,9 +156,13 @@ export default function AddConnectionsDrawer({
 
   function handleFormSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (duplicateWarning) {
+      setFormError(duplicateWarning)
+      return
+    }
     setFormError("")
     if (step === 1) {
-      if (organizationNameTaken) return
+      if (organizationNameTaken || postalCodeError(details.postalCode)) return
       setStep(2)
     } else if (step === 2) {
       setSkippedConnections(false)
@@ -179,6 +185,10 @@ export default function AddConnectionsDrawer({
   }
 
   async function submitConnection() {
+    if (duplicateWarning) {
+      setFormError(duplicateWarning)
+      return
+    }
     setIsSubmitting(true)
     setFormError("")
 
@@ -318,6 +328,15 @@ export default function AddConnectionsDrawer({
   const selectedProgramDetails = categories
     .flatMap((group) => group.programs)
     .filter((program) => selectedPrograms.has(program.id))
+  const duplicatePrograms = selectedProgramDetails.filter((program) =>
+    connectedAssetIdSet.has(program.id)
+  )
+  const duplicateWarning =
+    step === 1 && organizationNameTaken
+      ? `An organization named "${organizationName}" already exists. Select it from the partner list instead.`
+      : step > 1 && !skippedConnections && duplicatePrograms.length > 0
+        ? `Already connected: ${duplicatePrograms.map((program) => program.name).join("; ")}. Remove these selections to continue.`
+        : ""
 
   function toggleCategory(categoryName: string, open: boolean) {
     setOpenCategories((current) => {
@@ -488,20 +507,10 @@ export default function AddConnectionsDrawer({
                                     key={program.id}
                                     orientation="horizontal"
                                     className="items-start gap-3 rounded-sm py-2"
-                                    data-disabled={
-                                      connectedAssetIdSet.has(program.id) ||
-                                      undefined
-                                    }
                                   >
                                     <Checkbox
                                       id={program.id}
-                                      disabled={connectedAssetIdSet.has(
-                                        program.id
-                                      )}
-                                      checked={
-                                        connectedAssetIdSet.has(program.id) ||
-                                        selectedPrograms.has(program.id)
-                                      }
+                                      checked={selectedPrograms.has(program.id)}
                                       onCheckedChange={(checked) =>
                                         toggleProgram(program.id, checked)
                                       }
@@ -759,90 +768,105 @@ export default function AddConnectionsDrawer({
               {formMessage}
             </p>
           )}
-          <DrawerFooter className="flex-row justify-end gap-3 border-t px-6 py-4 pt-4">
-            <DrawerClose
-              render={
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="min-w-24"
-                />
-              }
-            >
-              Cancel
-            </DrawerClose>
-            {step === 1 ? (
-              <Button
-                type="submit"
-                variant="brand"
-                size="lg"
-                className="min-w-24"
-                disabled={organizationNameTaken}
-              >
-                Next
-              </Button>
-            ) : step === 2 ? (
-              <>
-                {!existingPartnerName && (
+          <DrawerFooter className="gap-3 border-t px-6 py-4 pt-4">
+            {duplicateWarning && (
+              <Alert variant="warning">
+                <TriangleAlert aria-hidden="true" />
+                <AlertDescription>{duplicateWarning}</AlertDescription>
+              </Alert>
+            )}
+            <div className="flex flex-wrap justify-end gap-3">
+              <DrawerClose
+                render={
                   <Button
                     type="button"
                     variant="secondary"
                     size="lg"
                     className="min-w-24"
-                    onClick={() => setStep(1)}
-                    disabled={isSubmitting || hasSubmitted}
-                  >
-                    Back
-                  </Button>
-                )}
+                  />
+                }
+              >
+                Cancel
+              </DrawerClose>
+              {step === 1 ? (
                 <Button
                   type="submit"
                   variant="brand"
                   size="lg"
                   className="min-w-24"
                   disabled={
-                    selectedPrograms.size === 0 || isSubmitting || hasSubmitted
+                    organizationNameTaken ||
+                    Boolean(postalCodeError(details.postalCode))
                   }
                 >
                   Next
                 </Button>
-              </>
-            ) : (
-              <>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="lg"
-                  className="min-w-24"
-                  onClick={() => setStep(2)}
-                  disabled={isSubmitting || hasSubmitted}
-                >
-                  Back
-                </Button>
-                <Button
-                  type="submit"
-                  variant="brand"
-                  size="lg"
-                  className="min-w-24"
-                  disabled={
-                    (!skippedConnections && !canSubmit) ||
-                    isSubmitting ||
-                    hasSubmitted
-                  }
-                >
-                  {isSubmitting
-                    ? "Saving…"
-                    : hasSubmitted
-                      ? skippedConnections
-                        ? "Saved"
-                        : "Added"
-                      : skippedConnections
-                        ? "Save"
-                        : "Submit"}
-                </Button>
-              </>
-            )}
+              ) : step === 2 ? (
+                <>
+                  {!existingPartnerName && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="lg"
+                      className="min-w-24"
+                      onClick={() => setStep(1)}
+                      disabled={isSubmitting || hasSubmitted}
+                    >
+                      Back
+                    </Button>
+                  )}
+                  <Button
+                    type="submit"
+                    variant="brand"
+                    size="lg"
+                    className="min-w-24"
+                    disabled={
+                      selectedPrograms.size === 0 ||
+                      isSubmitting ||
+                      hasSubmitted ||
+                      Boolean(duplicateWarning)
+                    }
+                  >
+                    Next
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="lg"
+                    className="min-w-24"
+                    onClick={() => setStep(2)}
+                    disabled={isSubmitting || hasSubmitted}
+                  >
+                    Back
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="brand"
+                    size="lg"
+                    className="min-w-24"
+                    disabled={
+                      (!skippedConnections && !canSubmit) ||
+                      Boolean(duplicateWarning) ||
+                      isSubmitting ||
+                      hasSubmitted
+                    }
+                  >
+                    {isSubmitting
+                      ? "Saving…"
+                      : hasSubmitted
+                        ? skippedConnections
+                          ? "Saved"
+                          : "Added"
+                        : skippedConnections
+                          ? "Save"
+                          : "Submit"}
+                  </Button>
+                </>
+              )}
+            </div>
           </DrawerFooter>
         </form>
       </DrawerContent>

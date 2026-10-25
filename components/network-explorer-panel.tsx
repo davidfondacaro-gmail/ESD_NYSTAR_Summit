@@ -5,6 +5,7 @@ import {
   useEffect,
   useEffectEvent,
   useMemo,
+  useRef,
   useState,
 } from "react"
 import { useRouter } from "next/navigation"
@@ -13,14 +14,9 @@ import {
   ChevronRight,
   Circle,
   Diamond,
-  FileText,
-  Group,
   Info,
   Link,
   Plus,
-  Table2,
-  Tag,
-  ZoomIn,
 } from "lucide-react"
 
 import AddConnectionsDrawer from "@/components/add-connections-drawer"
@@ -32,15 +28,8 @@ import NystarProgramPicker, {
 } from "@/components/nystar-program-picker"
 import type { MapItemSelection } from "@/components/nystar-leaflet-map"
 import NystarNetworkMap from "@/components/nystar-network-map"
-import ThemeToggleButton from "@/components/theme-toggle-button"
+import NetworkSettings, { SettingsButton } from "@/components/network-settings"
 import { Button } from "@/components/ui/button"
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
 import { Card, CardContent } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import {
@@ -57,13 +46,6 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar"
-import { Toggle } from "@/components/ui/toggle"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
-import { DATA_TABLES, type DataTableId } from "@/lib/data-tables"
 import {
   buildTourStops,
   nextTourIndex,
@@ -296,7 +278,8 @@ export default function NetworkExplorerPanel({
       ),
     }))
 
-  const [selectedProgramId, setSelectedProgramId] = useState(SHOW_ALL_CONNECTIONS)
+  const [selectedProgramId, setSelectedProgramId] =
+    useState(SHOW_ALL_CONNECTIONS)
   const [selectedPartnerName, setSelectedPartnerName] = useState("")
   const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
@@ -306,6 +289,9 @@ export default function NetworkExplorerPanel({
   const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
+  const [showInstructions, setShowInstructions] = useState(true)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const mainPanelRef = useRef<HTMLDivElement>(null)
   const [openSection, setOpenSection] = useState<ExplorerSectionId | null>(
     "program"
   )
@@ -353,6 +339,7 @@ export default function NetworkExplorerPanel({
   }
   function selectFromMap(item: MapItemSelection, sidebarExpanded: boolean) {
     interruptTour()
+    setRecentConnections([])
     if (item.kind === "program") {
       setSelectedProgramId(item.id)
       setSelectedPartnerName("")
@@ -364,6 +351,13 @@ export default function NetworkExplorerPanel({
     if (sidebarExpanded) {
       selectSection(item.kind === "program" ? "program" : "partner")
     }
+  }
+  function clearMapSelection() {
+    interruptTour()
+    setRecentConnections([])
+    setSelectedProgramId("")
+    setSelectedPartnerName("")
+    setSelectionRevision((revision) => revision + 1)
   }
   const tourStops = useMemo(
     () => buildTourStops(regions, locations),
@@ -463,294 +457,315 @@ export default function NetworkExplorerPanel({
   return (
     <SidebarProvider className="network-screen">
       <Sidebar collapsible="icon">
-        <SidebarHeader className="flex-row items-start justify-between gap-2 px-4 pt-5 pb-3">
-          <div className="flex min-w-0 flex-col gap-1 group-data-[collapsible=icon]:hidden">
-            <h1 className="network-sidebar__title">Making Connections Map</h1>
-            <p className="text-sm text-muted-foreground">
-              The NYSTSAR Innovation Network
-            </p>
-          </div>
-          <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
-        </SidebarHeader>
-        <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
-          <CollapsedExplorerNavigation
-            showTour={showTour}
-            showPartners={showPartners}
-            openSection={openSection}
-            onSelectSection={selectSection}
-          />
-          <ExplorerSection
-            headingId="find-program-heading"
-            icon={<Diamond aria-hidden="true" className="shrink-0" />}
-            title="NYSTAR Programs"
-            open={openSection === "program"}
-            onOpenChange={(open) => selectSection(open ? "program" : null)}
+        <div className="network-sidebar-views" data-settings={settingsOpen}>
+          <div
+            ref={mainPanelRef}
+            className="network-sidebar-view network-sidebar-view--main"
+            aria-hidden={settingsOpen}
+            inert={settingsOpen}
+            onTransitionEnd={(event) => {
+              if (
+                !settingsOpen &&
+                event.target === event.currentTarget &&
+                event.propertyName === "transform"
+              ) {
+                event.currentTarget
+                  .querySelector<HTMLButtonElement>(
+                    "[data-network-settings-trigger]"
+                  )
+                  ?.focus()
+              }
+            }}
           >
-            <Alert className="border-sidebar-border bg-transparent">
-              <Info aria-hidden="true" />
-              <AlertDescription>
-                Select a NYSTAR program to view its connections, or select Show
-                All Connections to view the full network.
-              </AlertDescription>
-            </Alert>
-            <NystarProgramPicker
-              includeAllConnections
-              categories={categories}
-              regions={regions}
-              labelledBy="find-program-heading"
-              value={selectedProgramId}
-              onValueChange={(value) => {
-                interruptTour()
-                setSelectedProgramId(value)
-                setSelectedPartnerName("")
-                setSelectionRevision((revision) => revision + 1)
-              }}
-            />
-            {selectedProgram && (
-              <ConnectProgramDrawer
-                key={selectedProgram.id}
-                programId={selectedProgram.id}
-                programName={selectedProgram.name}
-                categories={categories}
-                regions={regions}
-                partners={innovationPartners}
-                partnerRegionGroups={partnerRegionGroups}
-                onStart={startConnectionFlow}
-                onSaved={setRecentConnections}
-                open={connectDrawerOpen}
-                onOpenChange={setConnectDrawerOpen}
-              />
-            )}
-            {selectedProgram && !selectedProgramIsMapped && (
-              <p className="mt-2 text-xs text-muted-foreground">
-                This statewide program has no mapped location.
-              </p>
-            )}
-          </ExplorerSection>
-
-          {showPartners && (
-            <ExplorerSection
-              headingId="find-partner-heading"
-              icon={<Circle aria-hidden="true" className="shrink-0" />}
-              title="NYSTAR Innovation Partners"
-              open={openSection === "partner"}
-              onOpenChange={(open) => selectSection(open ? "partner" : null)}
-            >
-              <Alert className="border-sidebar-border bg-transparent">
-                <Info aria-hidden="true" />
-                <AlertDescription>
-                  Select an innovation partner to view its connections on the
-                  map.
-                </AlertDescription>
-              </Alert>
-              <InnovationPartnerPicker
-                partners={innovationPartners}
-                regionGroups={partnerRegionGroups}
-                labelledBy="find-partner-heading"
-                value={selectedPartnerName}
-                onValueChange={(value) => {
-                  interruptTour()
-                  setSelectedPartnerName(value)
-                  setSelectedProgramId("")
-                  setSelectionRevision((revision) => revision + 1)
-                }}
-              />
-              <AddConnectionsDrawer
-                categories={categories}
-                regions={regions}
-                partners={innovationPartners}
-                onStart={startConnectionFlow}
-                onSaved={setRecentConnections}
-                trigger={
-                  <Button
-                    type="button"
-                    variant="brand-link"
-                    size="inline"
-                    className="gap-1.5 self-start"
-                  >
-                    <Plus data-icon="inline-start" />
-                    Add Your Company
-                  </Button>
-                }
-              />
-              {selectedPartnerName && (
-                <AddConnectionsDrawer
-                  key={selectedPartnerName}
-                  categories={categories}
-                  regions={regions}
-                  partners={innovationPartners}
-                  existingPartnerName={selectedPartnerName}
-                  connectedAssetIds={selectedPartnerConnectedAssetIds}
-                  open={partnerConnectionsOpen}
-                  onOpenChange={setPartnerConnectionsOpen}
-                  onStart={startConnectionFlow}
-                  onSaved={setRecentConnections}
-                  trigger={
-                    <Button
-                      type="button"
-                      variant="brand-link"
-                      size="inline"
-                      className="shrink items-start gap-1.5 self-start text-left whitespace-normal [&_svg]:mt-0.5"
-                    >
-                      <Link data-icon="inline-start" />
-                      Add NYSTAR Connections for {selectedPartnerName}
-                    </Button>
-                  }
-                />
-              )}
-            </ExplorerSection>
-          )}
-
-          {showTour && (
-            <ExplorerSection
-              headingId="guided-tour-heading"
-              icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
-              title="Take a Guided Tour of the Network"
-              open={openSection === "tour"}
-              onOpenChange={(open) => selectSection(open ? "tour" : null)}
-            >
-              <Alert className="border-sidebar-border bg-transparent">
-                <Info aria-hidden="true" />
-                <AlertDescription>
-                  Select a region to start. Next advances one program; Auto
-                  displays each program and its popup for 8 seconds.
-                  The statewide inset shows the current program and its connections.
-                </AlertDescription>
-              </Alert>
-              <ExplorerListbox
-                labelledBy="guided-tour-heading"
-                options={tourRegionOptions}
-                value={tourStop?.region ?? tour.scope}
-                visibleRows={6}
-                onValueChange={startTour}
-              />
-              {tour.started && !tourStop && (
+            <SidebarHeader className="flex-row items-start justify-between gap-2 px-4 pt-5 pb-3">
+              <div className="flex min-w-0 flex-col gap-1 group-data-[collapsible=icon]:hidden">
+                <h1 className="network-sidebar__title">
+                  Making Connections Map
+                </h1>
                 <p className="text-sm text-muted-foreground">
-                  No mapped NYSTAR programs in this region.
+                  The NYSTSAR Innovation Network
                 </p>
-              )}
-              {tour.ownsMap &&
-                tourStatus.revision === selectionRevision &&
-                tourStatus.error && (
-                  <Alert variant="destructive">
+              </div>
+              <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
+            </SidebarHeader>
+            <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
+              <CollapsedExplorerNavigation
+                showTour={showTour}
+                showPartners={showPartners}
+                openSection={openSection}
+                onSelectSection={selectSection}
+              />
+              <ExplorerSection
+                headingId="find-program-heading"
+                icon={<Diamond aria-hidden="true" className="shrink-0" />}
+                title="NYSTAR Programs"
+                open={openSection === "program"}
+                onOpenChange={(open) => selectSection(open ? "program" : null)}
+              >
+                {showInstructions && (
+                  <Alert className="border-sidebar-border bg-transparent">
                     <Info aria-hidden="true" />
-                    <AlertDescription>{tourStatus.error}</AlertDescription>
+                    <AlertDescription>
+                      Select a NYSTAR program to view its connections, or select
+                      Show All Connections to view the full network.
+                    </AlertDescription>
                   </Alert>
                 )}
-              <div className="flex items-center justify-between gap-2">
-                <Button
-                  type="button"
-                  variant="default"
-                  size="sm"
-                  onClick={() =>
-                    tour.started ? exitTour() : startTour(tour.scope)
+                <NystarProgramPicker
+                  includeAllConnections
+                  categories={categories}
+                  regions={regions}
+                  labelledBy="find-program-heading"
+                  value={selectedProgramId}
+                  onValueChange={(value) => {
+                    interruptTour()
+                    setRecentConnections([])
+                    setSelectedProgramId(value)
+                    setSelectedPartnerName("")
+                    setSelectionRevision((revision) => revision + 1)
+                  }}
+                />
+                {selectedProgram && (
+                  <ConnectProgramDrawer
+                    key={selectedProgram.id}
+                    programId={selectedProgram.id}
+                    programName={selectedProgram.name}
+                    categories={categories}
+                    regions={regions}
+                    partners={innovationPartners}
+                    partnerRegionGroups={partnerRegionGroups}
+                    locations={locations}
+                    programConnections={programConnections}
+                    onStart={startConnectionFlow}
+                    onSaved={setRecentConnections}
+                    open={connectDrawerOpen}
+                    onOpenChange={setConnectDrawerOpen}
+                  />
+                )}
+                {selectedProgram && !selectedProgramIsMapped && (
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    This statewide program has no mapped location.
+                  </p>
+                )}
+              </ExplorerSection>
+
+              {showPartners && (
+                <ExplorerSection
+                  headingId="find-partner-heading"
+                  icon={<Circle aria-hidden="true" className="shrink-0" />}
+                  title="NYSTAR Innovation Partners"
+                  open={openSection === "partner"}
+                  onOpenChange={(open) =>
+                    selectSection(open ? "partner" : null)
                   }
                 >
-                  {tour.started ? "Exit Tour" : "Start Tour"}
-                </Button>
-                {tour.started && (
-                  <div className="ml-auto flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="brand-outline"
-                      size="sm"
-                      disabled={!tourStop}
-                      onClick={() => advanceTour(false)}
-                    >
-                      Next
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="brand-outline"
-                      size="sm"
-                      disabled={!tourStop}
-                      onClick={() => {
-                        if (tour.playing) pauseTour()
-                        else {
-                          setTour({ ...tour, playing: true, ownsMap: true })
-                          if (!tour.ownsMap) showTourStop(tourStop)
-                        }
-                      }}
-                    >
-                      {tour.playing ? "Pause" : "Auto"}
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </ExplorerSection>
-          )}
-        </SidebarContent>
-        <SidebarFooter className="items-end">
-          <div className="flex items-center gap-2 group-data-[collapsible=icon]:flex-col">
-            <Tooltip>
-              <Toggle
-                aria-label="Toggle marker clustering"
-                pressed={clusterMarkers}
-                onPressedChange={setClusterMarkers}
-                variant="default"
-                size="sm"
-                render={<TooltipTrigger />}
-              >
-                <Group aria-hidden="true" />
-              </Toggle>
-              <TooltipContent>Toggle marker clustering</TooltipContent>
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Toggle labels"
-                    title="Toggle labels"
+                  {showInstructions && (
+                    <Alert className="border-sidebar-border bg-transparent">
+                      <Info aria-hidden="true" />
+                      <AlertDescription>
+                        Select an innovation partner to view its connections on
+                        the map.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <InnovationPartnerPicker
+                    partners={innovationPartners}
+                    regionGroups={partnerRegionGroups}
+                    labelledBy="find-partner-heading"
+                    value={selectedPartnerName}
+                    onValueChange={(value) => {
+                      interruptTour()
+                      setRecentConnections([])
+                      setSelectedPartnerName(value)
+                      setSelectedProgramId("")
+                      setSelectionRevision((revision) => revision + 1)
+                    }}
                   />
-                }
-              >
-                <Tag aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" side="top" className="w-48">
-                <DropdownMenuCheckboxItem
-                  checked={showRegionLabels}
-                  onCheckedChange={setShowRegionLabels}
+                  <AddConnectionsDrawer
+                    categories={categories}
+                    regions={regions}
+                    partners={innovationPartners}
+                    onStart={startConnectionFlow}
+                    onSaved={setRecentConnections}
+                    trigger={
+                      <Button
+                        type="button"
+                        variant="brand-link"
+                        size="inline"
+                        className="gap-1.5 self-start"
+                      >
+                        <Plus data-icon="inline-start" />
+                        Add Your Company
+                      </Button>
+                    }
+                  />
+                  {selectedPartnerName && (
+                    <AddConnectionsDrawer
+                      key={selectedPartnerName}
+                      categories={categories}
+                      regions={regions}
+                      partners={innovationPartners}
+                      existingPartnerName={selectedPartnerName}
+                      connectedAssetIds={selectedPartnerConnectedAssetIds}
+                      open={partnerConnectionsOpen}
+                      onOpenChange={setPartnerConnectionsOpen}
+                      onStart={startConnectionFlow}
+                      onSaved={setRecentConnections}
+                      trigger={
+                        <Button
+                          type="button"
+                          variant="brand-link"
+                          size="inline"
+                          className="shrink items-start gap-1.5 self-start text-left whitespace-normal [&_svg]:mt-0.5"
+                        >
+                          <Link data-icon="inline-start" />
+                          Add NYSTAR Connections for {selectedPartnerName}
+                        </Button>
+                      }
+                    />
+                  )}
+                </ExplorerSection>
+              )}
+
+              {showTour && (
+                <ExplorerSection
+                  headingId="guided-tour-heading"
+                  icon={<ArrowRight aria-hidden="true" className="shrink-0" />}
+                  title="Take a Guided Tour of the Network"
+                  open={openSection === "tour"}
+                  onOpenChange={(open) => selectSection(open ? "tour" : null)}
                 >
-                  {showRegionLabels
-                    ? "Hide Region Labels"
-                    : "Show Region Labels"}
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={showCityLabels}
-                  onCheckedChange={setShowCityLabels}
-                >
-                  {showCityLabels ? "Hide City Labels" : "Show City Labels"}
-                </DropdownMenuCheckboxItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <Toggle
-              aria-label="Toggle map zoom controls"
-              title="Toggle map zoom controls"
-              pressed={showZoomControls}
-              onPressedChange={setShowZoomControls}
-              variant="default"
-              size="sm"
-            >
-              <ZoomIn aria-hidden="true" />
-            </Toggle>
-            <Toggle
-              aria-label="Toggle map legend"
-              title="Toggle map legend"
-              pressed={showMapLegend}
-              onPressedChange={setShowMapLegend}
-              variant="default"
-              size="sm"
-            >
-              <FileText aria-hidden="true" />
-            </Toggle>
-            <Tooltip>
-              <Toggle
-                aria-label="Toggle innovation partners"
-                pressed={showPartners}
-                onPressedChange={(visible) => {
+                  {showInstructions && (
+                    <Alert className="border-sidebar-border bg-transparent">
+                      <Info aria-hidden="true" />
+                      <AlertDescription>
+                        Select a region, then choose Start Tour. Next advances
+                        one program; Auto displays each program and its popup
+                        for 4 seconds. The statewide inset shows the current
+                        program and its connections.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  <ExplorerListbox
+                    labelledBy="guided-tour-heading"
+                    options={tourRegionOptions}
+                    value={tourStop?.region ?? tour.scope}
+                    visibleRows={6}
+                    onValueChange={(scope) =>
+                      tour.started
+                        ? startTour(scope)
+                        : setTour({ ...tour, scope, index: 0 })
+                    }
+                  />
+                  {tour.started && !tourStop && (
+                    <p className="text-sm text-muted-foreground">
+                      No mapped NYSTAR programs in this region.
+                    </p>
+                  )}
+                  {tour.ownsMap &&
+                    tourStatus.revision === selectionRevision &&
+                    tourStatus.error && (
+                      <Alert variant="destructive">
+                        <Info aria-hidden="true" />
+                        <AlertDescription>{tourStatus.error}</AlertDescription>
+                      </Alert>
+                    )}
+                  <div className="flex items-center justify-between gap-2">
+                    <Button
+                      type="button"
+                      variant="default"
+                      size="sm"
+                      onClick={() =>
+                        tour.started ? exitTour() : startTour(tour.scope)
+                      }
+                    >
+                      {tour.started ? "Exit Tour" : "Start Tour"}
+                    </Button>
+                    {tour.started && (
+                      <div className="ml-auto flex items-center gap-2">
+                        <Button
+                          type="button"
+                          variant="brand-outline"
+                          size="sm"
+                          disabled={!tourStop}
+                          onClick={() => advanceTour(false)}
+                        >
+                          Next
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="brand-outline"
+                          size="sm"
+                          disabled={!tourStop}
+                          onClick={() => {
+                            if (tour.playing) pauseTour()
+                            else {
+                              setTour({ ...tour, playing: true, ownsMap: true })
+                              if (!tour.ownsMap) showTourStop(tourStop)
+                            }
+                          }}
+                        >
+                          {tour.playing ? "Pause" : "Auto"}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </ExplorerSection>
+              )}
+            </SidebarContent>
+            <SidebarFooter className="items-end">
+              <SettingsButton
+                onOpen={() => {
+                  pauseTour()
+                  setSettingsOpen(true)
+                }}
+              />
+            </SidebarFooter>
+          </div>
+          <NetworkSettings
+            active={settingsOpen}
+            onBack={() => {
+              setSettingsOpen(false)
+              requestAnimationFrame(() =>
+                mainPanelRef.current
+                  ?.querySelector<HTMLButtonElement>(
+                    "[data-network-settings-trigger]"
+                  )
+                  ?.focus()
+              )
+            }}
+            map={[
+              {
+                label: "Marker clustering",
+                checked: clusterMarkers,
+                onCheckedChange: setClusterMarkers,
+              },
+              {
+                label: "Region labels",
+                checked: showRegionLabels,
+                onCheckedChange: setShowRegionLabels,
+              },
+              {
+                label: "City labels",
+                checked: showCityLabels,
+                onCheckedChange: setShowCityLabels,
+              },
+              {
+                label: "Zoom controls",
+                checked: showZoomControls,
+                onCheckedChange: setShowZoomControls,
+              },
+              {
+                label: "Legend",
+                checked: showMapLegend,
+                onCheckedChange: setShowMapLegend,
+              },
+            ]}
+            app={[
+              {
+                label: "Innovation partners",
+                checked: showPartners,
+                onCheckedChange: (visible) => {
                   setShowPartners(visible)
                   if (!visible) {
                     setOpenSection((section) =>
@@ -761,20 +776,17 @@ export default function NetworkExplorerPanel({
                       setSelectionRevision((revision) => revision + 1)
                     }
                   }
-                }}
-                variant="default"
-                size="sm"
-                render={<TooltipTrigger />}
-              >
-                <Circle aria-hidden="true" />
-              </Toggle>
-              <TooltipContent>Toggle innovation partners</TooltipContent>
-            </Tooltip>
-            <Tooltip>
-              <Toggle
-                aria-label="Toggle tour"
-                pressed={showTour}
-                onPressedChange={(visible) => {
+                },
+              },
+              {
+                label: "Instructions",
+                checked: showInstructions,
+                onCheckedChange: setShowInstructions,
+              },
+              {
+                label: "Guided tour",
+                checked: showTour,
+                onCheckedChange: (visible) => {
                   setShowTour(visible)
                   if (!visible) {
                     pauseTour()
@@ -782,49 +794,11 @@ export default function NetworkExplorerPanel({
                       section === "tour" ? null : section
                     )
                   }
-                }}
-                variant="default"
-                size="sm"
-                render={<TooltipTrigger />}
-              >
-                <ArrowRight aria-hidden="true" />
-              </Toggle>
-              <TooltipContent>Toggle tour</TooltipContent>
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="View data tables"
-                    title="View data tables"
-                  />
-                }
-              >
-                <Table2 aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" side="top" className="w-72">
-                {(Object.keys(DATA_TABLES) as DataTableId[]).map((id) => (
-                  <DropdownMenuItem
-                    key={id}
-                    render={
-                      <a
-                        href={`/data/${id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      />
-                    }
-                  >
-                    View {DATA_TABLES[id].title}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-            <ThemeToggleButton />
-          </div>
-        </SidebarFooter>
+                },
+              },
+            ]}
+          />
+        </div>
       </Sidebar>
       <SidebarInset className="network-map-panel">
         <SidebarTrigger
@@ -835,6 +809,8 @@ export default function NetworkExplorerPanel({
           onConnectProgram={connectFromMap}
           onConnectPartner={connectPartnerFromMap}
           onSelectItem={selectFromMap}
+          onPointClick={() => setRecentConnections([])}
+          onClearSelection={clearMapSelection}
           locations={locations}
           programConnections={programConnections}
           selectedProgramId={selectedProgramId}

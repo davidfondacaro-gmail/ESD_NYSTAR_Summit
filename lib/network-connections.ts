@@ -87,6 +87,7 @@ export function tourInsetData(
     if (connection.to.kind === "asset") assetIds.add(connection.to.id)
     else customerIds.add(connection.to.id)
   }
+
   return {
     connections,
     locations: locations
@@ -101,4 +102,90 @@ export function tourInsetData(
         (location) => location.assets.length + location.customers.length > 0
       ),
   }
+}
+
+export type ConnectedOrganization = {
+  id: string
+  kind: "asset" | "partner"
+  name: string
+  category?: string
+}
+
+export function existingConnectionTargets(
+  assetId: string,
+  programConnections: NystarProgramConnection[],
+  locations: NystarLocationGroup[]
+) {
+  const connections = connectionsForPopup(
+    new Set([assetId]),
+    new Set(),
+    programConnections,
+    locations
+  )
+  const programIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  for (const connection of connections) {
+    if (connection.to.kind === "asset") programIds.add(connection.to.id)
+    else partnerIds.add(connection.to.id)
+  }
+  const partnerNames = locations.flatMap((location) =>
+    location.customers
+      .filter((customer) => partnerIds.has(customer.id))
+      .map((customer) => customer.name)
+  )
+  return { programIds, partnerNames }
+}
+
+export function connectedOrganizationsForPopup(
+  point: { kind: "asset" | "partner"; id: string },
+  programConnections: NystarProgramConnection[],
+  locations: NystarLocationGroup[]
+): ConnectedOrganization[] {
+  const connections = connectionsForPopup(
+    new Set(point.kind === "asset" ? [point.id] : []),
+    new Set(point.kind === "partner" ? [point.id] : []),
+    programConnections,
+    locations
+  )
+  const assetIds = new Set<string>()
+  const partnerIds = new Set<string>()
+  for (const connection of connections) {
+    if (point.kind === "partner") {
+      assetIds.add(connection.fromAssetId)
+    } else if (connection.to.kind === "asset") {
+      assetIds.add(connection.to.id)
+    } else {
+      partnerIds.add(connection.to.id)
+    }
+  }
+  if (point.kind === "asset") assetIds.delete(point.id)
+  else partnerIds.delete(point.id)
+  const organizations = new Map<string, ConnectedOrganization>()
+  for (const location of locations) {
+    for (const asset of location.assets) {
+      if (assetIds.has(asset.id)) {
+        organizations.set(`asset:${asset.id}`, {
+          id: asset.id,
+          kind: "asset",
+          name: asset.name,
+          category: asset.category,
+        })
+      }
+    }
+    for (const customer of location.customers) {
+      if (partnerIds.has(customer.id)) {
+        organizations.set(`partner:${customer.id}`, {
+          id: customer.id,
+          kind: "partner",
+          name: customer.name,
+        })
+      }
+    }
+  }
+  return [...organizations.values()].sort(
+    (left, right) =>
+      left.name.localeCompare(right.name) ||
+      left.kind.localeCompare(right.kind) ||
+      left.id.localeCompare(right.id)
+  )
 }

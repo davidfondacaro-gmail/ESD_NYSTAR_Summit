@@ -1,6 +1,8 @@
 import assert from "node:assert/strict"
 import test from "node:test"
 import {
+  connectedOrganizationsForPopup,
+  existingConnectionTargets,
   connectionKey,
   connectionsForPopup,
   tourInsetData,
@@ -47,6 +49,26 @@ const programConnections = [
   { assetId1: "a", assetId2: "unmapped", connectionType: "Existing" },
   { assetId1: "b", assetId2: "unrelated", connectionType: "Existing" },
 ]
+
+test("duplicate targets ignore status, direction and repeated records", () => {
+  const targets = existingConnectionTargets("a", programConnections, locations)
+  assert.deepEqual([...targets.programIds].sort(), ["b", "unmapped"])
+  assert.deepEqual(targets.partnerNames.sort(), ["local", "remote"])
+  assert.ok(
+    existingConnectionTargets(
+      "b",
+      programConnections,
+      locations
+    ).programIds.has("a")
+  )
+  const isolated = existingConnectionTargets(
+    "isolated",
+    programConnections,
+    locations
+  )
+  assert.equal(isolated.programIds.size, 0)
+  assert.deepEqual(isolated.partnerNames, [])
+})
 
 test("inset contains only direct mapped endpoints, including remote partners and programs", () => {
   const data = tourInsetData("a", programConnections, locations)
@@ -107,4 +129,49 @@ test("shared collector preserves normal program and partner popup connection sco
     locations
   )
   assert.ok(program.every((c) => c.fromAssetId === "a"))
+})
+
+test("program popup lists unique direct organizations with only name and symbol data", () => {
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "asset", id: "a" },
+      programConnections,
+      locations
+    ),
+    [
+      { id: "b", kind: "asset", name: "b", category: "Test" },
+      { id: "local", kind: "partner", name: "local" },
+      { id: "remote", kind: "partner", name: "remote" },
+    ]
+  )
+})
+
+test("partner popup lists only its connected programs with category symbols", () => {
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "partner", id: "local" },
+      programConnections,
+      locations
+    ),
+    [
+      { id: "a", kind: "asset", name: "a", category: "Test" },
+      { id: "b", kind: "asset", name: "b", category: "Test" },
+    ]
+  )
+  assert.equal(
+    connectedOrganizationsForPopup(
+      { kind: "partner", id: "remote" },
+      programConnections,
+      locations
+    ).length,
+    1
+  )
+  assert.deepEqual(
+    connectedOrganizationsForPopup(
+      { kind: "asset", id: "isolated" },
+      programConnections,
+      locations
+    ),
+    []
+  )
 })

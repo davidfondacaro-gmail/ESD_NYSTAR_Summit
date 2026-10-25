@@ -3,7 +3,7 @@ import type {
   NystarProgramGroup,
 } from "./nystar-locations"
 
-export const TOUR_DWELL_MS = 8_000
+export const TOUR_DWELL_MS = 4_000
 
 export type TourStop = { region: string; assetId: string; name: string }
 

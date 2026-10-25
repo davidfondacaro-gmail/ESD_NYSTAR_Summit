@@ -32,6 +32,8 @@ export default function NystarNetworkMap({
   onConnectProgram,
   onConnectPartner,
   onSelectItem,
+  onPointClick,
+  onClearSelection,
   activeTourRegion,
   tourExitRevision,
   onTourStatus,
@@ -53,6 +55,8 @@ export default function NystarNetworkMap({
   onConnectProgram?: (programId: string) => void
   onConnectPartner?: (partnerName: string) => void
   onSelectItem?: (item: MapItemSelection) => void
+  onPointClick: () => void
+  onClearSelection: () => void
   activeTourRegion: string | null
   tourExitRevision: number
   onTourStatus: (revision: number, error: string | null) => void
@@ -76,6 +80,8 @@ export default function NystarNetworkMap({
       onConnectProgram={onConnectProgram}
       onConnectPartner={onConnectPartner}
       onSelectItem={onSelectItem}
+      onPointClick={onPointClick}
+      onClearSelection={onClearSelection}
       activeTourRegion={activeTourRegion}
       tourExitRevision={tourExitRevision}
       onTourStatus={onTourStatus}
