@@ -284,7 +284,7 @@ export default function NetworkExplorerPanel({
   const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
   const [showCityLabels, setShowCityLabels] = useState(true)
-  const [showZoomControls, setShowZoomControls] = useState(false)
+  const [showZoomControls, setShowZoomControls] = useState(true)
   const [showMapLegend, setShowMapLegend] = useState(true)
   const [legendCategory, setLegendCategory] = useState<string | null>(null)
   const [clusterMarkers, setClusterMarkers] = useState(false)
