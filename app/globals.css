@@ -301,6 +301,7 @@ body {
 
 .network-map-shell {
   position: relative;
+  isolation: isolate;
   flex: 1;
   min-width: 0;
   min-height: 0;
@@ -654,6 +655,49 @@ body {
 
 .leaflet-bar a:hover {
   background-color: var(--network-control-hover);
+}
+
+.nystar-map-toolbar {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.nystar-map-toolbar__button {
+  display: flex;
+  width: 30px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-bottom: 1px solid var(--network-control-border);
+  background-color: var(--network-control-bg);
+  color: var(--network-control-ink);
+  cursor: pointer;
+}
+
+.nystar-map-toolbar__button:last-child {
+  border-bottom: 0;
+}
+
+.nystar-map-toolbar__button:hover:not(:disabled),
+.nystar-map-toolbar__button[data-popup-open] {
+  background-color: var(--network-control-hover);
+}
+
+.nystar-map-toolbar__button:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: -2px;
+}
+
+.nystar-map-toolbar__button:disabled {
+  cursor: default;
+  opacity: 0.4;
+}
+
+.nystar-map-toolbar__icon {
+  width: 18px;
+  height: 18px;
 }
 
 .nystar-city-label {

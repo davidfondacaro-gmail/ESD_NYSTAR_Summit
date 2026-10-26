@@ -12,14 +12,22 @@ import {
   Pane,
   Popup,
   Polyline,
-  ZoomControl,
   useMap,
   useMapEvents,
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { Link } from "lucide-react"
+import { Link, Pentagon } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
 import type {
   NystarLocationGroup,
@@ -194,7 +202,92 @@ function RecenterMapOnSidebarClose({ touring }: { touring: boolean }) {
   return null
 }
 
-function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: boolean }) {
+// Outline of New York State generated from the MEP region boundaries (24×24 viewBox).
+const NY_STATE_ICON_PATH = "M16.3 11.8 16.3 12.2 16.6 12.1 16.3 13.5 15.8 13.5 15.0 12.9 13.1 13.7 13.6 11.6 13.0 11.6 12.2 10.5 11.8 10.5 11.8 9.8 12.0 9.2 12.8 9.5 13.9 8.7 13.8 6.9 14.7 7.0 14.9 9.2 14.6 9.8 15.5 10.2 16.6 10.1 16.8 11.5ZM10.8 13.3 11.8 13.3 11.8 12.1 13.4 12.0 13.1 13.7 15.1 12.9 15.8 13.5 15.5 14.1 15.8 14.2 13.8 15.4 13.3 14.9 6.6 14.9 6.8 12.7 8.3 12.7 8.3 13.0 8.8 13.1 9.0 12.8 9.8 12.8 9.6 12.5 10.7 12.5ZM18.8 12.9 18.3 14.9 17.2 14.6 17.0 14.2 16.8 14.5 15.5 14.1 15.8 13.5 16.4 13.4 16.6 12.1 16.2 12.0 16.8 11.5 16.4 8.3 18.8 8.1 18.5 9.0 18.9 8.7 19.1 9.0ZM11.5 6.1 13.4 4.1 14.6 3.5 18.8 3.4 18.8 4.6 18.6 4.6 18.9 6.2 18.5 7.1 18.7 8.0 16.4 8.3 16.6 10.1 16.4 10.2 15.5 10.2 14.6 9.8 14.9 9.2 14.7 7.0 13.8 6.9 13.9 8.7 12.8 9.5 12.1 9.3 12.1 8.4 10.9 8.5 10.6 7.8 10.9 7.6 10.9 7.8 11.3 7.3 10.9 7.4 11.2 7.1 10.9 7.0 10.7 7.4 10.4 6.9ZM2.9 14.9 1.0 14.9 1.0 13.8 2.7 12.8 3.5 11.9 3.4 10.9 2.9 10.7 2.9 10.1 4.6 9.7 4.6 12.9 6.7 13.1 6.6 14.9ZM16.8 20.0 16.3 20.6 16.5 20.0ZM17.0 19.9 17.3 19.5 17.9 19.6 17.8 20.0 17.3 20.1 17.4 20.3 17.0 20.3ZM17.2 19.4 17.3 19.0 17.6 19.1 17.6 19.4ZM18.4 19.0 18.5 19.2 18.5 18.9 18.6 19.1 18.7 18.8 19.3 19.1 19.5 18.7 21.1 18.7 21.8 18.1 20.9 19.0 21.4 19.0 21.7 18.5 21.7 18.7 22.2 18.5 22.3 18.7 23.0 18.4 21.3 19.3 21.5 19.1 21.2 19.1 20.2 19.7 19.4 19.6 17.9 20.2 17.7 20.1 17.7 19.3 18.0 19.4 18.1 19.0ZM17.3 18.7 15.0 17.0 14.3 16.8 13.8 15.4 15.8 14.2 16.8 14.5 17.0 14.2 17.2 14.6 18.3 14.9 18.5 14.7 18.3 17.5 18.5 17.9 17.8 18.3 18.0 18.7 17.7 19.1 17.3 19.0ZM5.7 12.9 4.6 12.9 4.6 9.7 6.6 9.8 7.2 10.2 9.5 9.8 9.4 12.1 9.8 12.8 9.0 12.8 8.8 13.1 8.3 13.0 8.3 12.7 6.8 12.7 6.7 13.1ZM11.8 12.2 11.8 13.3 10.8 13.3 10.7 12.5 9.6 12.5 9.4 12.0 9.5 9.8 10.3 9.1 10.8 9.0 10.9 8.5 11.4 8.4 12.1 8.4 11.8 10.5 12.2 10.5 12.7 11.3 13.6 11.7 13.4 12.0Z"
+
+function NyStateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="nystar-map-toolbar__icon">
+      <path d={NY_STATE_ICON_PATH} fill="currentColor" stroke="currentColor"
+        strokeWidth={0.5} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function MapToolbar({ regions, activeRegion, onSelectRegion, onStatewide }: {
+  regions: string[]
+  activeRegion: string | null
+  onSelectRegion: (region: string) => void
+  onStatewide: () => void
+}) {
+  const map = useMap()
+  const [element] = useState(() => {
+    const container = L.DomUtil.create("div", "leaflet-bar nystar-map-toolbar")
+    L.DomEvent.disableClickPropagation(container)
+    L.DomEvent.disableScrollPropagation(container)
+    return container
+  })
+  const [zoom, setZoom] = useState(() => map.getZoom())
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+
+  useEffect(() => {
+    const control = new L.Control({ position: "bottomright" })
+    control.onAdd = () => element
+    control.addTo(map)
+    return () => {
+      control.remove()
+    }
+  }, [element, map])
+
+  return createPortal(
+    <>
+      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-in"
+        aria-label="Zoom in" title="Zoom in" disabled={zoom >= map.getMaxZoom()}
+        onClick={() => map.zoomIn()}>
+        <span aria-hidden="true">+</span>
+      </button>
+      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-out"
+        aria-label="Zoom out" title="Zoom out" disabled={zoom <= map.getMinZoom()}
+        onClick={() => map.zoomOut()}>
+        <span aria-hidden="true">&#x2212;</span>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<button type="button" className="nystar-map-toolbar__button" />}
+          aria-label="Zoom to region" title="Zoom to region" disabled={regions.length === 0}
+        >
+          <Pentagon aria-hidden="true" className="nystar-map-toolbar__icon" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="left" align="end" sideOffset={8} className="w-auto min-w-48">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Zoom to region</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={activeRegion ?? ""} onValueChange={onSelectRegion}>
+              {regions.map((region) => (
+                <DropdownMenuRadioItem key={region} value={region} closeOnClick>
+                  {region}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <button type="button" className="nystar-map-toolbar__button"
+        aria-label="Statewide view" title="Statewide view" onClick={onStatewide}>
+        <NyStateIcon />
+      </button>
+    </>,
+    element
+  )
+}
+
+function MapZoomControls({ enabled, touring, regions, activeRegion, onSelectRegion, onStatewide }: {
+  enabled: boolean
+  touring: boolean
+  regions: string[]
+  activeRegion: string | null
+  onSelectRegion: (region: string) => void
+  onStatewide: () => void
+}) {
   const map = useMap()
 
   useEffect(() => {
@@ -226,7 +319,13 @@ function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: bool
     wasTouring.current = touring
   }, [enabled, map, touring])
 
-  return enabled ? <ZoomControl position="bottomright" /> : null
+  return enabled ? (
+    <MapToolbar regions={regions} activeRegion={activeRegion}
+      onSelectRegion={onSelectRegion} onStatewide={() => {
+        onStatewide()
+        resetStatewideView(map)
+      }} />
+  ) : null
 }
 
 function regionStyle(selected: boolean): L.PathOptions {
@@ -240,10 +339,11 @@ function regionStyle(selected: boolean): L.PathOptions {
 }
 
 function MepRegionsLayer({
-  showRegionLabels, activeRegion, onRegionStatus, onGeometry,
+  showRegionLabels, activeRegion, fitRevision = 0, onRegionStatus, onGeometry,
 }: {
   showRegionLabels: boolean
   activeRegion: string | null
+  fitRevision?: number
   onRegionStatus: (region: string, error: string | null) => void
   onGeometry: (geometry: GeoJSON.GeoJsonObject) => void
 }) {
@@ -286,7 +386,7 @@ function MepRegionsLayer({
     fitRegion()
     map.on("resize", fitRegion)
     return () => { map.off("resize", fitRegion) }
-  }, [activeRegion, regionData, map, onRegionStatus])
+  }, [activeRegion, fitRevision, regionData, map, onRegionStatus])
 
   useEffect(() => {
     showRegionLabelsRef.current = showRegionLabels
@@ -1028,7 +1128,8 @@ function InsetRegions({ geometry, activeRegion }: {
   return null
 }
 
-function TourInset({ geometry, activeRegion, assetId, locations, programConnections, error }: {
+function TourInset({ geometry, activeRegion, assetId, locations, programConnections, error, label = "Statewide tour overview" }: {
+  label?: string
   geometry: GeoJSON.GeoJsonObject | null
   activeRegion: string
   assetId: string
@@ -1046,7 +1147,7 @@ function TourInset({ geometry, activeRegion, assetId, locations, programConnecti
     for (const customer of location.customers) positions.set(`partner:${customer.id}`, [location.latitude, location.longitude])
   }
   return (
-    <aside className="network-tour-inset" aria-label={`Statewide tour overview: ${activeRegion}`}>
+    <aside className="network-tour-inset" aria-label={`${label}: ${activeRegion}`}>
       <h2 className="network-tour-inset__heading">{activeRegion}</h2>
       {error ? (
         <p className="network-tour-inset__status" role="alert">{error}</p>
@@ -1148,6 +1249,16 @@ export default function NystarLeafletMap({
   onManualInteraction: () => void
 }) {
   const [regionGeometry, setRegionGeometry] = useState<GeoJSON.GeoJsonObject | null>(null)
+  // A region chosen from the map toolbar; the tour's region takes precedence over it.
+  const [regionFocus, setRegionFocus] = useState<{ region: string; revision: number } | null>(null)
+  if (regionFocus && (activeTourRegion || !showZoomControls)) setRegionFocus(null)
+  const activeRegion = activeTourRegion ?? regionFocus?.region ?? null
+  const regionNames = useMemo(() => {
+    const features = (regionGeometry as GeoJSON.FeatureCollection | null)?.features ?? []
+    return [...new Set(features
+      .map((feature) => String(feature.properties?.region_name ?? "").trim())
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right))
+  }, [regionGeometry])
   const [regionStatus, setRegionStatus] = useState<{ region: string; error: string | null } | null>(null)
   const onRegionStatus = useCallback((region: string, error: string | null) => {
     setRegionStatus({ region, error })
@@ -1175,7 +1286,7 @@ export default function NystarLeafletMap({
     legendPreview.selected === legendCategory
       ? legendPreview.category
       : null
-  const effectiveCategory = showMapLegend && !activeTourRegion
+  const effectiveCategory = showMapLegend && !activeRegion
     ? previewCategory ?? legendCategory
     : null
   // Point labels need individual markers, so clustering pauses while the legend filters.
@@ -1519,14 +1630,24 @@ export default function NystarLeafletMap({
     >
       <InvalidateMapSize />
       <PopupPlacement />
-      <MapZoomControls enabled={showZoomControls} touring={!!activeTourRegion} />
-      <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
+      <MapZoomControls enabled={showZoomControls} touring={!!activeRegion}
+        regions={regionNames} activeRegion={activeRegion}
+        onSelectRegion={(region) => {
+          onManualInteraction()
+          setRegionFocus((current) => ({ region, revision: (current?.revision ?? 0) + 1 }))
+        }}
+        onStatewide={() => {
+          onManualInteraction()
+          setRegionFocus(null)
+        }} />
+      <RecenterMapOnSidebarClose touring={!!activeRegion} />
       <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={() => {
         setConnectionSelection(null)
         setMapPopupRequest(null)
         onClearSelection()
       }} />
-      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion}
+      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeRegion}
+        fitRevision={regionFocus?.revision}
         onRegionStatus={onRegionStatus} onGeometry={setRegionGeometry} />
       <OpenSelectedMapSelectionPopup
         popupLocation={activeConnection ? undefined : popupLocation}
@@ -1592,13 +1713,14 @@ export default function NystarLeafletMap({
       </Pane>
       {effectiveCategory && <PointLabels labels={pointLabels} />}
       </MapContainer>
-        {activeTourRegion && (
-          <TourInset geometry={regionGeometry} activeRegion={activeTourRegion}
+        {activeRegion && (
+          <TourInset geometry={regionGeometry} activeRegion={activeRegion}
+            label={activeTourRegion ? "Statewide tour overview" : "Statewide overview"}
             assetId={selectedProgramId} locations={groupedLocations}
             programConnections={programConnections}
-            error={regionStatus?.region === activeTourRegion ? regionStatus.error : null} />
+            error={regionStatus?.region === activeRegion ? regionStatus.error : null} />
         )}
-        {showMapLegend && !activeTourRegion && (
+        {showMapLegend && !activeRegion && (
           <aside
             className="network-map-legend"
             aria-label="Map legend"
