@@ -1,6 +1,6 @@
 Connection ID,Customer ID,NYSTAR Asset ID,Organization Name,NYSTAR Program Name,NYSTAR Host Organization,Connection Type,Added,Followup Name,Followup Email,Followup Phone,Comments
-CON-56b380d8-c817-4eab-8410-eab02cff2fbe,CUS-006,NYSTAR-001,asdf,Center for Advanced Ceramic Technology (CACT),Alfred University,Desired,2026-10-19T21:16:17.579Z,adsf,,,sdf
-CON-31daa8a7-ecfb-4873-863d-5d970f6daf86,CUS-006,NYSTAR-002,asdf,Center for Advanced Materials Processing (CAMP),Clarkson University,Existing,2026-10-19T21:16:17.579Z,,,,
-CON-23c28d56-ca35-4cd3-9768-9fd0d862a363,CUS-007,NYSTAR-013,Fondo,Additive Manufacturing and Multifunctional Printing (AMPrint) Center,Rochester Institute of Technology,Desired,2026-10-19T22:59:38.274Z,fondo,david.fondacaro@gmail.com,5188511551,comment here - should end up in comment field
-CON-4bda4004-61f9-4861-aa1e-8adc5cfaf93a,CUS-008,NYSTAR-062,Allison,Accelerate Long Island,Accelerate Long Island,Desired,2026-10-19T23:04:52.185Z,Al,alfondacaro@gmail.com,(518) 210-4365,comments for Al partner
-CON-c2cf180b-5965-431c-b032-08b827117d80,CUS-007,NYSTAR-039,Fondo,Advanced Institute for Manufacturing (AIM),Mohawk Valley Community College,Existing,2026-10-19T23:21:04.710Z,,,,
+CON-f0b3f7dd-fd9c-4e27-8bb7-8e842a98fbd5,CUS-004,NYSTAR-044,Ameritool Mfg,FuzeHub,FuzeHub,Existing,2026-10-21T18:19:17.550Z,,,,
+CON-46a6e062-c8ef-4e9b-a508-37fc193c3088,CUS-005,NYSTAR-044,Meyda Lighting,FuzeHub,FuzeHub,Existing,2026-10-21T18:19:53.794Z,,,,
+CON-1ed45b31-c411-4897-b55a-267a9a94dc0e,CUS-001,NYSTAR-044,Schatz Bearing,FuzeHub,FuzeHub,Existing,2026-10-21T18:20:37.849Z,,,,
+CON-70593023-9d57-4ae0-b621-7a54efbf3866,CUS-003,NYSTAR-044,StemCultures,FuzeHub,FuzeHub,Existing,2026-10-21T18:21:04.817Z,,,,
+CON-3503f13d-8b76-4119-b0ae-ba6a9c6c437f,CUS-002,NYSTAR-044,Z-Axis,FuzeHub,FuzeHub,Existing,2026-10-21T18:23:12.458Z,,,,
