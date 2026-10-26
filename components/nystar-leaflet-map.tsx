@@ -1180,14 +1180,6 @@ export default function NystarLeafletMap({
     : null
   // Point labels need individual markers, so clustering pauses while the legend filters.
   const clusterMarkers = clusterMarkersSetting && !effectiveCategory
-  const filteredLocations = useMemo(
-    () => filterLegendLocations(groupedLocations, effectiveCategory),
-    [groupedLocations, effectiveCategory]
-  )
-  const locations = useMemo(
-    () => (clusterMarkers ? filteredLocations : spreadCoLocatedItems(filteredLocations)),
-    [clusterMarkers, filteredLocations]
-  )
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
   const [connectionSelection, setConnectionSelection] = useState<{
     connection: RecentConnection
@@ -1195,6 +1187,45 @@ export default function NystarLeafletMap({
     revision: number
     dismissRevision: number
   } | null>(null)
+  const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
+  const [handledCategory, setHandledCategory] = useState(effectiveCategory)
+  const [popupDismissal, setPopupDismissal] = useState<{
+    selectionRevision: number
+    mapPopupRequest: MapPopupRequest | null
+  } | null>(null)
+  if (popupDismissRevision !== handledDismissRevision || effectiveCategory !== handledCategory) {
+    setHandledCategory(effectiveCategory)
+    setHandledDismissRevision(popupDismissRevision)
+    setPopupDismissal({ selectionRevision, mapPopupRequest })
+    setConnectionSelection(null)
+  }
+  // Popups stay dismissed until a new sidebar selection or marker click.
+  const popupsDismissed =
+    popupDismissal?.selectionRevision === selectionRevision &&
+    popupDismissal.mapPopupRequest === mapPopupRequest
+  // A selected point brings its connected points into the legend-filtered view.
+  const legendFocus = useMemo(() => {
+    if (!effectiveCategory || popupsDismissed) return undefined
+    const customerIds = new Set(selectedProgramId || !selectedPartnerName ? [] : groupedLocations.flatMap(
+      (location) => location.customers.filter((customer) => customer.name === selectedPartnerName).map((customer) => customer.id)
+    ))
+    const assetIds = new Set(selectedProgramId ? [selectedProgramId] : [])
+    if (assetIds.size + customerIds.size === 0) return undefined
+    for (const connection of connectionsForPopup(assetIds, customerIds, programConnections, groupedLocations)) {
+      assetIds.add(connection.fromAssetId)
+      if (connection.to.kind === "asset") assetIds.add(connection.to.id)
+      else customerIds.add(connection.to.id)
+    }
+    return { assetIds, customerIds }
+  }, [effectiveCategory, popupsDismissed, selectedProgramId, selectedPartnerName, programConnections, groupedLocations])
+  const filteredLocations = useMemo(
+    () => filterLegendLocations(groupedLocations, effectiveCategory, legendFocus),
+    [groupedLocations, effectiveCategory, legendFocus]
+  )
+  const locations = useMemo(
+    () => (clusterMarkers ? filteredLocations : spreadCoLocatedItems(filteredLocations)),
+    [clusterMarkers, filteredLocations]
+  )
   const activeConnection = connectionSelection?.revision === selectionRevision &&
     connectionSelection.dismissRevision === popupDismissRevision &&
     locations.some((location) => location.assets.some((asset) => asset.id === connectionSelection.connection.fromAssetId)) &&
@@ -1216,22 +1247,6 @@ export default function NystarLeafletMap({
   const connectionCustomers = locations.flatMap((location) => location.customers).filter((customer) =>
     activeConnection?.connection.to.kind === "partner" && customer.id === activeConnection.connection.to.id
   )
-  const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
-  const [handledCategory, setHandledCategory] = useState(effectiveCategory)
-  const [popupDismissal, setPopupDismissal] = useState<{
-    selectionRevision: number
-    mapPopupRequest: MapPopupRequest | null
-  } | null>(null)
-  if (popupDismissRevision !== handledDismissRevision || effectiveCategory !== handledCategory) {
-    setHandledCategory(effectiveCategory)
-    setHandledDismissRevision(popupDismissRevision)
-    setPopupDismissal({ selectionRevision, mapPopupRequest })
-    setConnectionSelection(null)
-  }
-  // Popups stay dismissed until a new sidebar selection or marker click.
-  const popupsDismissed =
-    popupDismissal?.selectionRevision === selectionRevision &&
-    popupDismissal.mapPopupRequest === mapPopupRequest
   useEffect(() => {
     if (!popupDismissRevision) return
     const group = clusterRef.current as (L.MarkerClusterGroup & { unspiderfy?: () => void }) | null

@@ -41,3 +41,14 @@ test("clearing restores the original dataset and unknown categories show no poin
   assert.deepEqual(filterLegendLocations(locations, "missing"), [])
   assert.deepEqual(filterLegendLocations([], "CAT"), [])
 })
+
+test("extras keep selected points and their connections visible outside the category", () => {
+  const result = filterLegendLocations(locations, "MEP", {
+    assetIds: new Set(["a"]),
+    customerIds: new Set(["unconnected"]),
+  })
+  assert.deepEqual(result[0].assets.map((asset) => asset.id), ["a", "b"])
+  assert.deepEqual(result.flatMap((location) => location.customers.map((c) => c.id)), [
+    "other", "unconnected",
+  ])
+})
