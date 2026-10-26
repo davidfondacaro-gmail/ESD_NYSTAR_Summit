@@ -485,7 +485,7 @@ export default function NetworkExplorerPanel({
                   Making Connections Map
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  The NYSTSAR Innovation Network
+                  The NYSTAR Innovation Network
                 </p>
               </div>
               <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
