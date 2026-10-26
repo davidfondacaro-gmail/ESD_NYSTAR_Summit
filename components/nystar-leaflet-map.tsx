@@ -1440,7 +1440,7 @@ export default function NystarLeafletMap({
         {showMapLegend && !activeTourRegion && (
           <aside className="network-map-legend" aria-label="Map legend">
             <div className="network-map-legend__logo">
-              <Image src="/nystar-logo.svg" alt="NYSTAR" width={910} height={310} loading="eager" />
+              <Image src="/nystar-logo-new.jpeg" alt="New York State Division of Science, Technology & Innovation, a division of Empire State Development" width={561} height={401} loading="eager" />
             </div>
             <h2 className="network-map-legend__title">NYSTAR Programs</h2>
             <ul className="network-map-legend__items">
