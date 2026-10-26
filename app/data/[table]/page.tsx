@@ -72,16 +72,17 @@ export default async function DataTablePage({ params }: DataTablePageProps) {
   )
 
   return (
-    <main className="flex min-h-svh flex-col gap-4 p-6">
-      <header className="flex flex-wrap items-baseline justify-between gap-2">
+    <main className="flex h-svh flex-col gap-4 p-6">
+      <header className="flex shrink-0 flex-wrap items-baseline justify-between gap-2">
         <h1 className="text-xl font-semibold">{title}</h1>
         <p className="text-sm text-muted-foreground">
           {data.length} {data.length === 1 ? "row" : "rows"} · {file}
         </p>
       </header>
-      <div className="rounded-lg border">
+      {/* The app locks body scrolling for the map, so the table scrolls inside its own container. */}
+      <div className="min-h-0 flex-1 overflow-hidden rounded-lg border *:data-[slot=table-container]:h-full *:data-[slot=table-container]:overflow-auto">
         <Table>
-          <TableHeader className="bg-muted/50">
+          <TableHeader className="sticky top-0 z-10 bg-muted shadow-[inset_0_-1px_0_var(--border)]">
             <TableRow>
               {columns.map((column) => (
                 <TableHead key={column}>{column}</TableHead>
