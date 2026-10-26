@@ -17,10 +17,9 @@ const connectionsCsvPath = join(dataDirectory, "nystar-nystar-connections.csv")
 const connectionHeaders = [
   "Connection ID",
   "NYSTAR Asset ID 1",
+  "NYSTAR Program Name 1",
   "NYSTAR Asset ID 2",
-  "Organization Name",
-  "NYSTAR Program Name",
-  "NYSTAR Host Organization",
+  "NYSTAR Program Name 2",
   "Connection Type",
   "Added",
   "Followup Name",
@@ -32,7 +31,6 @@ const connectionHeaders = [
 type NystarCsvRow = {
   ID: string
   "Asset / Program Name": string
-  "Host Organization": string
 }
 
 let writeQueue: Promise<void> = Promise.resolve()
@@ -156,10 +154,9 @@ export async function POST(request: Request) {
       return [
         `CON-${randomUUID()}`,
         assetId1,
-        assetId,
         asset1["Asset / Program Name"].trim(),
+        assetId,
         asset2["Asset / Program Name"].trim(),
-        asset2["Host Organization"]?.trim() ?? "",
         connectionType as string,
         added,
         isDesired ? followupName : "",
