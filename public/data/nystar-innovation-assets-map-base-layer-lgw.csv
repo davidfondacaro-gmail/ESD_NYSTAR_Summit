@@ -7,7 +7,7 @@ NYSTAR-005,New York City,Centers for Advanced Technology,Center for Advanced Tec
 NYSTAR-006,Long Island,Centers for Advanced Technology,Center for Biotechnology (CFB),Stony Brook University,100 Nicolls Road,,Stony Brook,NY,11794,Medium,University campus address; center office should be confirmed
 NYSTAR-007,Long Island,Centers for Advanced Technology,Grid Innovation Development and Deployment (GrIDD),Stony Brook University,100 Nicolls Road,,Stony Brook,NY,11794,Medium,University campus address; center office should be confirmed
 NYSTAR-008,Southern Tier,Centers for Advanced Technology,Integrated Electronics Engineering Center (IEEC),Binghamton University,4400 Vestal Parkway East,,Vestal,NY,13850,Medium,University campus address; center office should be confirmed
-NYSTAR-009,Central New York,Centers for Advanced Technology--NO LONGER OPERATING,Center for Advanced Systems and Engineering (CASE),Syracuse University,111 College Place,,Syracuse,NY,13244,Medium,University campus address; center office should be confirmed
+NYSTAR-009,Central New York,Centers for Advanced Technology,Center for Advanced Systems and Engineering (CASE),Syracuse University,111 College Place,,Syracuse,NY,13244,Medium,University campus address; center office should be confirmed
 NYSTAR-010,Capital District,Centers for Advanced Technology,Center for Advanced Technology in Nanomaterials and Nanoelectronics (CATN2),University at Albany,1400 Washington Avenue,,Albany,NY,12222,High,Albany NanoTech Complex campus address
 NYSTAR-011,Western New York,Centers for Advanced Technology,Center for Advanced Technology in Big Data & Health Sciences (UB CAT),University at Buffalo,77 Goodell Street,,Buffalo,NY,14203,Medium,Buffalo Niagara Medical Campus address; center office should be confirmed
 NYSTAR-012,Finger Lakes,Centers for Advanced Technology,Center for Emerging and Innovative Sciences (CEIS),University of Rochester,250 East River Road,,Rochester,NY,14623,Medium,University of Rochester research campus address
@@ -44,7 +44,7 @@ NYSTAR-041,North Country,New York Manufacturing Extension Partnership,CITEC Inc.
 NYSTAR-042,Southern Tier,New York Manufacturing Extension Partnership,Alliance for Manufacturing and Technology (AM&T),AM&T,120 Hawley Street,,Binghamton,NY,13901,High,Organization headquarters address
 NYSTAR-043,Western New York,New York Manufacturing Extension Partnership,Insyte Consulting,Insyte Consulting,726 Exchange Street,Suite 500,Buffalo,NY,14210,High,Organization headquarters address
 NYSTAR-044,Capital District,New York Manufacturing Extension Partnership,FuzeHub,FuzeHub,25 Monroe St,Suite 201,Albany,NY,12210,High,Organization headquarters address
-NYSTAR-045,Western New York,New York State Accelerators and Competition,43North,43North,77 Goodell Street,Suite 201,Buffalo,NY,14203,High,Organization headquarters address
+NYSTAR-045,Western New York,New York State Accelerators and Competitions,43North,43North,77 Goodell Street,Suite 201,Buffalo,NY,14203,High,Organization headquarters address
 NYSTAR-046,Finger Lakes,New York State Accelerators and Competitions,Luminate,NextCorps,260 East Main Street,,Rochester,NY,14604,High,Program host address
 NYSTAR-047,Central New York,New York State Accelerators and Competitions,Grow-NY,Cornell University,,,Ithaca,NY,13021,Medium,Program office address should be confirmed
 NYSTAR-048,Central New York,New York State Accelerators and Competitions,GENIUS NY,GENIUS NY / CenterState CEO,235 Harrison Street,,Syracuse,NY,13202,Medium,Program host address should be confirmed
@@ -52,35 +52,35 @@ NYSTAR-049,Mohawk Valley,New York State Accelerators and Competitions,HUSTLE,Gri
 NYSTAR-050,Capital District,New York State Accelerators and Competitions,FuzeHub Commercialization Competition,FuzeHub,25 Monroe St,Suite 201,Albany,NY,12210,High,Program host address
 NYSTAR-051,Capital District,New York State Accelerators and Competitions,New York Business Plan Competition,Upstate Capital,,,Saratoga Springs,NY,12866,Low,Statewide program; no single operating address assigned
 NYSTAR-082,New York City,Innovation Hot Spot,NYC Innovation Hot Spot,CUNY,205 E 42nd St,,New York,NY,10017,,
-NYSTAR-083,Capital District,NYS-Certified Business Incubator,Accelerating for Medical and Pharmaceutical Sciences (AMPS),Albany College of Pharmacy and Health Sciences,106 New Scotland Avenue,,Albany,NY,12208,High,Host institution address
+NYSTAR-083,Capital District,NYS Certified Business Incubator,Accelerating for Medical and Pharmaceutical Sciences (AMPS),Albany College of Pharmacy and Health Sciences,106 New Scotland Avenue,,Albany,NY,12208,High,Host institution address
 NYSTAR-053,Capital District,Innovation Hot Spot,Innovate 518,University at Albany / partners,1400 Washington Avenue,,Albany,NY,12222,Medium,Partner campus address; program is regional
-NYSTAR-054,Capital District,NYS-Certified Business Incubator,Tech Valley Center of Gravity,Tech Valley Center of Gravity,30 3rd Street,,Troy,NY,12180,High,Organization address
-NYSTAR-084,Capital District,NYS-Certified Business Incubator,Severino Center,Rensselaer Polytechnic Institute,110 8th Street,,Troy,NY,12180,Medium,Host campus address; distributed model
+NYSTAR-054,Capital District,NYS Certified Business Incubator,Tech Valley Center of Gravity,Tech Valley Center of Gravity,30 3rd Street,,Troy,NY,12180,High,Organization address
+NYSTAR-084,Capital District,NYS Certified Business Incubator,Severino Center,Rensselaer Polytechnic Institute,110 8th Street,,Troy,NY,12180,Medium,Host campus address; distributed model
 NYSTAR-056,Central New York,Innovation Hot Spot,INSPYRE Innovation Hub,CenterState CEO,1020 East Fayette Street,,Syracuse,NY,13210,High,INSPYRE Innovation Hub address
-NYSTAR-057,Central New York,NYS-Certified Business Incubator,Central New York Biotech Accelerator,Upstate Medical University,841 East Fayette Street,,Syracuse,NY,13210,High,CNYBAC address
-NYSTAR-085,Central New York,NYS-Certified Business Incubator,The Hub,Partnership for Community Development,3 Broad Street,,Hamilton,NY,13346,Medium,Organization address should be confirmed
+NYSTAR-057,Central New York,NYS Certified Business Incubator,Central New York Biotech Accelerator,Upstate Medical University,841 East Fayette Street,,Syracuse,NY,13210,High,CNYBAC address
+NYSTAR-085,Central New York,NYS Certified Business Incubator,The Hub,Partnership for Community Development,3 Broad Street,,Hamilton,NY,13346,Medium,Organization address should be confirmed
 NYSTAR-059,Finger Lakes,Innovation Hot Spot,NextCorps,NextCorps,260 East Main Street,,Rochester,NY,14604,High,Organization headquarters address
-NYSTAR-086,Finger Lakes,NYS-Certified Business Incubator,The Technology Farm,Cornell Agriculture and Food Technology Park,500 Technology Farm Drive,,Geneva,NY,14456,High,Technology Farm address
-NYSTAR-061,Long Island,NYS-Certified Business Incubator,ideaHUb / Hofstra University,Hofstra University,146 Hofstra University,,Hempstead,NY,11549,Medium,Campus address; program office should be confirmed
+NYSTAR-086,Finger Lakes,NYS Certified Business Incubator,The Technology Farm,Cornell Agriculture and Food Technology Park,500 Technology Farm Drive,,Geneva,NY,14456,High,Technology Farm address
+NYSTAR-061,Long Island,NYS Certified Business Incubator,ideaHUb / Hofstra University,Hofstra University,146 Hofstra University,,Hempstead,NY,11549,Medium,Campus address; program office should be confirmed
 NYSTAR-062,Long Island,Innovation Hot Spot,Accelerate Long Island,Accelerate Long Island,25 Health Sciences Drive,,Stony Brook,NY,11790,Medium,Organization address should be confirmed
-NYSTAR-063,New York City,NYS-Certified Business Incubator,Entrepreneurship and Technology Innovation Center (ETIC),New York Institute of Technology,16 West 61st Street,,New York,NY,10023,Medium,NYIT Manhattan address; ETIC location should be confirmed
-NYSTAR-087,Hudson Valley,NYS-Certified Business Incubator,Hudson Valley Open Kitchen,Hudson River Housing,313 Mill Street,,Poughkeepsie,NY,12601,Medium,Organization address should be confirmed
+NYSTAR-063,New York City,NYS Certified Business Incubator,Entrepreneurship and Technology Innovation Center (ETIC),New York Institute of Technology,16 West 61st Street,,New York,NY,10023,Medium,NYIT Manhattan address; ETIC location should be confirmed
+NYSTAR-087,Hudson Valley,NYS Certified Business Incubator,Hudson Valley Open Kitchen,Hudson River Housing,313 Mill Street,,Poughkeepsie,NY,12601,Medium,Organization address should be confirmed
 NYSTAR-088,Hudson Valley,Innovation Hot Spot,Hudson Valley Venture Hub,SUNY New Paltz,1 Hawk Drive,,New Paltz,NY,12561,Medium,Host campus address; program office should be confirmed
 NYSTAR-066,Mohawk Valley,Innovation Hot Spot,thINCubator,Mohawk Valley Community College,326 Broad Street,,Utica,NY,13501,High,Organization address
-NYSTAR-067,Mohawk Valley,NYS-Certified Business Incubator,Griffiss Institute Certified Business Incubator,Griffiss Institute,592 Hangar Road,,Rome,NY,13441,High,Organization address
-NYSTAR-068,Mohawk Valley,NYS-Certified Business Incubator,Center for Agricultural Development and Entrepreneurship (CADE),CADE,111 Main Street,,Oneonta,NY,13820,Low,Organization location should be verified before map publication
-NYSTAR-069,New York City,NYS-Certified Business Incubator,Hub for Innovation and Entrepreneurship (NYCRIN),City College of New York,160 Convent Avenue,,New York,NY,10031,Medium,Host institution address; hub location should be confirmed
-NYSTAR-070,New York City,NYS-Certified Business Incubator,Downstate Biotech Incubator and BioBAT,SUNY Downstate Health Sciences University,760 Parkside Avenue,,Brooklyn,NY,11226,High,Host institution address
-NYSTAR-071,New York City,NYS-Certified Business Incubator,NYU Tandon Future Labs,New York University Tandon School of Engineering,370 Jay Street,,Brooklyn,NY,11201,High,Tandon address
-NYSTAR-072,New York City,NYS-Certified Business Incubator,Communitas America,Communitas America,205 E 42nd St,,New York,NY,10017,Low,Organization address requires confirmation before map publication
-NYSTAR-073,New York City,NYS-Certified Business Incubator,Staten Island Tech Incubator,College of Staten Island,2800 Victory Boulevard,,Staten Island,NY,10314,High,Host institution address
+NYSTAR-067,Mohawk Valley,NYS Certified Business Incubator,Griffiss Institute Certified Business Incubator,Griffiss Institute,592 Hangar Road,,Rome,NY,13441,High,Organization address
+NYSTAR-068,Mohawk Valley,NYS Certified Business Incubator,Center for Agricultural Development and Entrepreneurship (CADE),CADE,111 Main Street,,Oneonta,NY,13820,Low,Organization location should be verified before map publication
+NYSTAR-069,New York City,NYS Certified Business Incubator,Hub for Innovation and Entrepreneurship (NYCRIN),City College of New York,160 Convent Avenue,,New York,NY,10031,Medium,Host institution address; hub location should be confirmed
+NYSTAR-070,New York City,NYS Certified Business Incubator,Downstate Biotech Incubator and BioBAT,SUNY Downstate Health Sciences University,760 Parkside Avenue,,Brooklyn,NY,11226,High,Host institution address
+NYSTAR-071,New York City,NYS Certified Business Incubator,NYU Tandon Future Labs,New York University Tandon School of Engineering,370 Jay Street,,Brooklyn,NY,11201,High,Tandon address
+NYSTAR-072,New York City,NYS Certified Business Incubator,Communitas America,Communitas America,205 E 42nd St,,New York,NY,10017,Low,Organization address requires confirmation before map publication
+NYSTAR-073,New York City,NYS Certified Business Incubator,Staten Island Tech Incubator,College of Staten Island,2800 Victory Boulevard,,Staten Island,NY,10314,High,Host institution address
 NYSTAR-074,North Country,Innovation Hot Spot,Shipley Center for Innovation,Clarkson University,8 Clarkson Avenue,,Potsdam,NY,13699,Medium,Host campus address; center office should be confirmed
-NYSTAR-075,Southern Tier,NYS-Certified Business Incubator,Koffman Southern Tier Incubator,Binghamton University,120 Hawley Street,,Binghamton,NY,13901,High,Incubator address
-NYSTAR-076,Western New York,NYS-Certified Business Incubator,IncubatorWorks,IncubatorWorks,157 Main Street,,Olean,NY,14760,High,Organization address
-NYSTAR-077,Southern Tier,NYS-Certified Business Incubator,Rev Ithaca Startup Works,Rev Ithaca,314 East State Street,,Ithaca,NY,14850,High,Organization address
+NYSTAR-075,Southern Tier,NYS Certified Business Incubator,Koffman Southern Tier Incubator,Binghamton University,120 Hawley Street,,Binghamton,NY,13901,High,Incubator address
+NYSTAR-076,Western New York,NYS Certified Business Incubator,IncubatorWorks,IncubatorWorks,157 Main Street,,Olean,NY,14760,High,Organization address
+NYSTAR-077,Southern Tier,NYS Certified Business Incubator,Rev Ithaca Startup Works,Rev Ithaca,314 East State Street,,Ithaca,NY,14850,High,Organization address
 NYSTAR-078,Southern Tier,Innovation Hot Spot,Southern Tier Startup Alliance,Southern Tier Startup Alliance,120 Hawley Street,,Binghamton,NY,13901,Medium,Regional alliance address should be confirmed
 NYSTAR-079,Western New York,Innovation Hot Spot,WIN: WNY Incubator Network,University at Buffalo,77 Goodell Street,,Buffalo,NY,14203,Medium,Host institution address; network is regional
-NYSTAR-080,Western New York,NYS-Certified Business Incubator,Olean Business Development,Olean Business Development Corporation,301 North Union Street,,Olean,NY,14760,High,Organization address
+NYSTAR-080,Western New York,NYS Certified Business Incubator,Olean Business Development,Olean Business Development Corporation,301 North Union Street,,Olean,NY,14760,High,Organization address
 NYSTAR-089,Capital District,NY Global Entrepreneurs Program,University at Albany RISE Global Entrepreneurs Program,University at Albany,"1220 Washinton Avenue 
 ETEC ",,Albany,NY,12203,High,Org address in IP
 NYSTAR-090,New York City,NY Global Entrepreneurs Program,Weill Cornell Medicine Global Entrepreneurs Program,Weill Cornell Medicine,"1157 York Ave ",,New York,NY,10065,High,Org address in IP

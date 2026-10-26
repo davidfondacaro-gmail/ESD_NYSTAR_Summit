@@ -1511,7 +1511,7 @@ export default function NystarLeafletMap({
                       } as React.CSSProperties}
                       aria-hidden="true"
                     />
-                    <span>{category}</span>
+                    <span>{category.replace(/\bNew York\b/g, "NY")}</span>
                   </button>
                 </li>
               ))}

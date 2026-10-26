@@ -3,11 +3,10 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Centers of Excellence": "#c58b32",
   "Innovation Hot Spot": "#4e927a",
   "New York Manufacturing Extension Partnership": "#4786a4",
-  "New York State Accelerators and Competition": "#ba7050",
   "New York State Accelerators and Competitions": "#ad839a",
   "NY Fashion Innovation Center": "#a97fb2",
   "NY Global Entrepreneurs Program": "#4f9697",
-  "NYS-Certified Business Incubator": "#a4934f",
+  "NYS Certified Business Incubator": "#a4934f",
 }
 
 export function categoryColor(category: string) {
