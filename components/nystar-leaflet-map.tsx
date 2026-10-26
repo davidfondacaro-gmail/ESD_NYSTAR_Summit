@@ -4,6 +4,7 @@ import L from "leaflet"
 import Image from "next/image"
 import { arrow, computePosition, offset, platform, shift, type Placement } from "@floating-ui/dom"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
   MapContainer,
@@ -28,6 +29,7 @@ import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 import { connectedOrganizationsForPopup, connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
 import { filterLegendLocations } from "@/lib/network-legend"
+import { calloutAnchor, layoutPointLabels, type Box, type PlacedLabel } from "@/lib/map-point-labels"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.5
@@ -888,6 +890,111 @@ function markerIcon(
   })
 }
 
+const POINT_LABEL_PANE = "point-labels"
+
+type PointLabel = { id: string; position: L.LatLng; names: string[] }
+
+function PointLabels({ labels }: { labels: PointLabel[] }) {
+  const map = useMap()
+  const [pane] = useState(() => {
+    const existing = map.getPane(POINT_LABEL_PANE)
+    if (existing) return existing
+    const created = map.createPane(POINT_LABEL_PANE)
+    created.style.zIndex = "640"
+    created.style.pointerEvents = "none"
+    return created
+  })
+  const labelRefs = useRef(new Map<string, HTMLSpanElement>())
+  const [layout, setLayout] = useState<{ labels: PointLabel[]; placed: Map<string, PlacedLabel> } | null>(null)
+  const [zooming, setZooming] = useState(false)
+
+  useLayoutEffect(() => {
+    // Measure the rendered labels, then lay them out in layer coordinates so they pan with the map.
+    const update = () => {
+      const size = map.getSize()
+      const topLeft = map.containerPointToLayerPoint([0, 0])
+      const containerRect = map.getContainer().getBoundingClientRect()
+      const toLayerBox = (rect: DOMRect): Box => {
+        const start = map.containerPointToLayerPoint([rect.left - containerRect.left, rect.top - containerRect.top])
+        return { left: start.x, top: start.y, right: start.x + rect.width, bottom: start.y + rect.height }
+      }
+      const root = map.getContainer().parentElement ?? map.getContainer()
+      const boxesFor = (selector: string) => [...root.querySelectorAll(selector)]
+        .map((element) => element.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+        .map(toLayerBox)
+      const placed = layoutPointLabels(
+        labels.map((label) => {
+          const point = map.latLngToLayerPoint(label.position)
+          const element = labelRefs.current.get(label.id)
+          // Wrapped text can leave the box wider than its lines, so measure the lines themselves.
+          const left = element?.getBoundingClientRect().left ?? 0
+          const textRight = Math.max(left, ...[...element?.querySelectorAll(".nystar-point-labels__text") ?? []]
+            .flatMap((text) => [...text.getClientRects()].map((rect) => rect.right)))
+          return {
+            id: label.id,
+            x: point.x,
+            y: point.y,
+            width: Math.ceil(textRight - left),
+            height: element?.offsetHeight ?? 0,
+          }
+        }),
+        { left: topLeft.x + 4, top: topLeft.y + 4, right: topLeft.x + size.x - 4, bottom: topLeft.y + size.y - 4 },
+        {
+          hard: boxesFor(".network-map-legend, .leaflet-control"),
+          soft: boxesFor(".nystar-region-label__text"),
+        }
+      )
+      setLayout({ labels, placed: new Map(placed.map((label) => [label.id, label])) })
+      setZooming(false)
+    }
+    const hide = () => setZooming(true)
+    update()
+    map.on("zoomend viewreset resize moveend", update)
+    map.on("zoomstart", hide)
+    return () => {
+      map.off("zoomend viewreset resize moveend", update)
+      map.off("zoomstart", hide)
+    }
+  }, [labels, map])
+
+  const placed = layout?.labels === labels ? layout.placed : null
+  return createPortal(
+    <div className="nystar-point-labels" data-hidden={zooming || !placed || undefined}>
+      <svg className="nystar-point-labels__callouts" aria-hidden="true">
+        {placed && [...placed.values()].filter((label) => label.callout).map((label) => {
+          const anchor = calloutAnchor(label)
+          return (
+            <g key={label.id}>
+              <line x1={label.pointX} y1={label.pointY} x2={anchor.x} y2={anchor.y} />
+              <circle cx={label.pointX} cy={label.pointY} r={2} />
+            </g>
+          )
+        })}
+      </svg>
+      {labels.map((label) => {
+        const position = placed?.get(label.id)
+        return (
+          <span
+            key={label.id}
+            ref={(element) => {
+              if (element) labelRefs.current.set(label.id, element)
+              else labelRefs.current.delete(label.id)
+            }}
+            className="nystar-point-labels__label"
+            style={{ transform: position ? `translate(${position.x}px, ${position.y}px)` : undefined }}
+          >
+            {label.names.map((name, index) => (
+              <span key={index}><span className="nystar-point-labels__text">{name}</span></span>
+            ))}
+          </span>
+        )
+      })}
+    </div>,
+    pane
+  )
+}
+
 function InsetRegions({ geometry, activeRegion }: {
   geometry: GeoJSON.GeoJsonObject
   activeRegion: string
@@ -1000,7 +1107,7 @@ export default function NystarLeafletMap({
   showMapLegend,
   legendCategory,
   onLegendCategoryChange,
-  clusterMarkers,
+  clusterMarkers: clusterMarkersSetting,
   showRegionLabels,
   showCityLabels,
   recentConnections,
@@ -1071,6 +1178,8 @@ export default function NystarLeafletMap({
   const effectiveCategory = showMapLegend && !activeTourRegion
     ? previewCategory ?? legendCategory
     : null
+  // Point labels need individual markers, so clustering pauses while the legend filters.
+  const clusterMarkers = clusterMarkersSetting && !effectiveCategory
   const filteredLocations = useMemo(
     () => filterLegendLocations(groupedLocations, effectiveCategory),
     [groupedLocations, effectiveCategory]
@@ -1180,6 +1289,13 @@ export default function NystarLeafletMap({
     }
     return positions
   }, [locations])
+  const pointLabels = useMemo(() => effectiveCategory
+    ? locations.map((location) => ({
+        id: `${locationKey(location)}:${[...location.assets.map((asset) => asset.id), ...location.customers.map((customer) => customer.id)].join("|")}`,
+        position: L.latLng(location.latitude, location.longitude),
+        names: [...location.assets.map((asset) => asset.name), ...location.customers.map((customer) => customer.name)],
+      }))
+    : [], [effectiveCategory, locations])
   const mapCategories = Array.from(
     new Set(groupedLocations.flatMap((location) => location.assets.map((asset) => asset.category)))
   ).sort((left, right) => left.localeCompare(right))
@@ -1444,7 +1560,7 @@ export default function NystarLeafletMap({
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
       >
-        {showCityLabels && cityLabels.map(({ name, position, offset }) => (
+        {showCityLabels && !effectiveCategory && cityLabels.map(({ name, position, offset }) => (
           <Marker
             key={name}
             position={position}
@@ -1459,6 +1575,7 @@ export default function NystarLeafletMap({
           />
         ))}
       </Pane>
+      {effectiveCategory && <PointLabels labels={pointLabels} />}
       </MapContainer>
         {activeTourRegion && (
           <TourInset geometry={regionGeometry} activeRegion={activeTourRegion}
