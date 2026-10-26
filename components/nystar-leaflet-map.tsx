@@ -27,6 +27,7 @@ import type {
 import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 import { connectedOrganizationsForPopup, connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
+import { filterLegendLocations } from "@/lib/network-legend"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.5
@@ -997,6 +998,8 @@ export default function NystarLeafletMap({
   selectionRevision,
   showZoomControls,
   showMapLegend,
+  legendCategory,
+  onLegendCategoryChange,
   clusterMarkers,
   showRegionLabels,
   showCityLabels,
@@ -1020,6 +1023,8 @@ export default function NystarLeafletMap({
   selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
+  legendCategory: string | null
+  onLegendCategoryChange: (category: string | null) => void
   clusterMarkers: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
@@ -1053,9 +1058,26 @@ export default function NystarLeafletMap({
   }, [activeTourRegion, regionStatus, onTourStatus, selectionRevision])
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
+  const [legendPreview, setLegendPreview] = useState<{
+    category: string
+    revision: number
+    selected: string | null
+  } | null>(null)
+  const previewCategory =
+    legendPreview?.revision === selectionRevision &&
+    legendPreview.selected === legendCategory
+      ? legendPreview.category
+      : null
+  const effectiveCategory = showMapLegend && !activeTourRegion
+    ? previewCategory ?? legendCategory
+    : null
+  const filteredLocations = useMemo(
+    () => filterLegendLocations(groupedLocations, effectiveCategory),
+    [groupedLocations, effectiveCategory]
+  )
   const locations = useMemo(
-    () => (clusterMarkers ? groupedLocations : spreadCoLocatedItems(groupedLocations)),
-    [clusterMarkers, groupedLocations]
+    () => (clusterMarkers ? filteredLocations : spreadCoLocatedItems(filteredLocations)),
+    [clusterMarkers, filteredLocations]
   )
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
   const [connectionSelection, setConnectionSelection] = useState<{
@@ -1065,7 +1087,11 @@ export default function NystarLeafletMap({
     dismissRevision: number
   } | null>(null)
   const activeConnection = connectionSelection?.revision === selectionRevision &&
-    connectionSelection.dismissRevision === popupDismissRevision
+    connectionSelection.dismissRevision === popupDismissRevision &&
+    locations.some((location) => location.assets.some((asset) => asset.id === connectionSelection.connection.fromAssetId)) &&
+    locations.some((location) => connectionSelection.connection.to.kind === "asset"
+      ? location.assets.some((asset) => asset.id === connectionSelection.connection.to.id)
+      : location.customers.some((customer) => customer.id === connectionSelection.connection.to.id))
     ? connectionSelection : null
   useEffect(() => {
     clusterRef.current?.refreshClusters()
@@ -1082,13 +1108,16 @@ export default function NystarLeafletMap({
     activeConnection?.connection.to.kind === "partner" && customer.id === activeConnection.connection.to.id
   )
   const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
+  const [handledCategory, setHandledCategory] = useState(effectiveCategory)
   const [popupDismissal, setPopupDismissal] = useState<{
     selectionRevision: number
     mapPopupRequest: MapPopupRequest | null
   } | null>(null)
-  if (popupDismissRevision !== handledDismissRevision) {
+  if (popupDismissRevision !== handledDismissRevision || effectiveCategory !== handledCategory) {
+    setHandledCategory(effectiveCategory)
     setHandledDismissRevision(popupDismissRevision)
     setPopupDismissal({ selectionRevision, mapPopupRequest })
+    setConnectionSelection(null)
   }
   // Popups stay dismissed until a new sidebar selection or marker click.
   const popupsDismissed =
@@ -1152,7 +1181,7 @@ export default function NystarLeafletMap({
     return positions
   }, [locations])
   const mapCategories = Array.from(
-    new Set(locations.flatMap((location) => location.assets.map((asset) => asset.category)))
+    new Set(groupedLocations.flatMap((location) => location.assets.map((asset) => asset.category)))
   ).sort((left, right) => left.localeCompare(right))
   const markers = locations.map((location) => {
     const selectedOnly = !showFullLocation && location === sidebarLocation
@@ -1438,25 +1467,67 @@ export default function NystarLeafletMap({
             error={regionStatus?.region === activeTourRegion ? regionStatus.error : null} />
         )}
         {showMapLegend && !activeTourRegion && (
-          <aside className="network-map-legend" aria-label="Map legend">
+          <aside
+            className="network-map-legend"
+            aria-label="Map legend"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault()
+                setLegendPreview(null)
+                onLegendCategoryChange(null)
+              }
+            }}
+          >
             <div className="network-map-legend__logo">
               <Image src="/nystar-logo-new.jpeg" alt="New York State Division of Science, Technology & Innovation, a division of Empire State Development" width={561} height={401} loading="eager" />
             </div>
             <h2 className="network-map-legend__title">NYSTAR Programs</h2>
             <ul className="network-map-legend__items">
               {mapCategories.map((category) => (
-                <li className="network-map-legend__item" key={category}>
-                  <span
-                    className="network-map-legend__star"
-                    style={{
-                      "--marker-color": CATEGORY_COLORS[category] ?? "var(--network-customer-marker)",
-                    } as React.CSSProperties}
-                    aria-hidden="true"
-                  />
-                  <span>{category}</span>
+                <li key={category}>
+                  <button
+                    type="button"
+                    className="network-map-legend__item network-map-legend__category"
+                    title="Hover to preview; click to toggle this category filter"
+                    aria-pressed={legendCategory === category}
+                    data-preview={previewCategory === category}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType !== "touch") {
+                        setLegendPreview({ category, revision: selectionRevision, selected: legendCategory })
+                      }
+                    }}
+                    onPointerLeave={() => setLegendPreview(null)}
+                    onFocus={() => setLegendPreview({ category, revision: selectionRevision, selected: legendCategory })}
+                    onBlur={() => setLegendPreview(null)}
+                    onClick={() => {
+                      setLegendPreview(null)
+                      onLegendCategoryChange(legendCategory === category ? null : category)
+                    }}
+                  >
+                    <span
+                      className="network-map-legend__star"
+                      style={{
+                        "--marker-color": CATEGORY_COLORS[category] ?? "var(--network-customer-marker)",
+                      } as React.CSSProperties}
+                      aria-hidden="true"
+                    />
+                    <span>{category}</span>
+                  </button>
                 </li>
               ))}
             </ul>
+            {legendCategory && (
+              <button
+                type="button"
+                className="network-map-legend__clear"
+                onClick={() => {
+                  setLegendPreview(null)
+                  onLegendCategoryChange(null)
+                }}
+              >
+                Clear filter
+              </button>
+            )}
             <h2 className="network-map-legend__title network-map-legend__title--section">
               Innovation Partners
             </h2>

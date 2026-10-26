@@ -24,6 +24,8 @@ export default function NystarNetworkMap({
   selectionRevision,
   showZoomControls,
   showMapLegend,
+  legendCategory,
+  onLegendCategoryChange,
   clusterMarkers,
   showRegionLabels,
   showCityLabels,
@@ -47,6 +49,8 @@ export default function NystarNetworkMap({
   selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
+  legendCategory: string | null
+  onLegendCategoryChange: (category: string | null) => void
   clusterMarkers: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
@@ -72,6 +76,8 @@ export default function NystarNetworkMap({
       selectionRevision={selectionRevision}
       showZoomControls={showZoomControls}
       showMapLegend={showMapLegend}
+      legendCategory={legendCategory}
+      onLegendCategoryChange={onLegendCategoryChange}
       clusterMarkers={clusterMarkers}
       showRegionLabels={showRegionLabels}
       showCityLabels={showCityLabels}

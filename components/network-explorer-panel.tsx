@@ -286,6 +286,7 @@ export default function NetworkExplorerPanel({
   const [showCityLabels, setShowCityLabels] = useState(true)
   const [showZoomControls, setShowZoomControls] = useState(false)
   const [showMapLegend, setShowMapLegend] = useState(true)
+  const [legendCategory, setLegendCategory] = useState<string | null>(null)
   const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
@@ -402,6 +403,7 @@ export default function NetworkExplorerPanel({
     setSelectionRevision((revision) => revision + 1)
   }
   function startTour(scope: string) {
+    setLegendCategory(null)
     const stops = scopedTourStops(tourStops, scope)
     setTour({
       scope,
@@ -518,6 +520,7 @@ export default function NetworkExplorerPanel({
                   labelledBy="find-program-heading"
                   value={selectedProgramId}
                   onValueChange={(value) => {
+                    setLegendCategory(null)
                     interruptTour()
                     setRecentConnections([])
                     setSelectedProgramId(value)
@@ -574,6 +577,7 @@ export default function NetworkExplorerPanel({
                     labelledBy="find-partner-heading"
                     value={selectedPartnerName}
                     onValueChange={(value) => {
+                      setLegendCategory(null)
                       interruptTour()
                       setRecentConnections([])
                       setSelectedPartnerName(value)
@@ -758,7 +762,10 @@ export default function NetworkExplorerPanel({
               {
                 label: "Legend",
                 checked: showMapLegend,
-                onCheckedChange: setShowMapLegend,
+                onCheckedChange: (visible) => {
+                  setShowMapLegend(visible)
+                  if (!visible) setLegendCategory(null)
+                },
               },
             ]}
             app={[
@@ -819,6 +826,8 @@ export default function NetworkExplorerPanel({
           selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
+          legendCategory={legendCategory}
+          onLegendCategoryChange={setLegendCategory}
           clusterMarkers={clusterMarkers}
           showRegionLabels={showRegionLabels}
           showCityLabels={showCityLabels}
