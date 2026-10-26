@@ -45,7 +45,7 @@ function errorResponse(message: string, status: number) {
   return Response.json({ error: message }, { status })
 }
 
-async function appendConnection(row: string[]) {
+async function appendConnections(rows: string[][]) {
   const operation = writeQueue.then(async () => {
     let csv: string | null = null
     try {
@@ -57,7 +57,7 @@ async function appendConnection(row: string[]) {
     if (csv === null || csv.trim() === "") {
       await writeFile(
         connectionsCsvPath,
-        `${Papa.unparse([connectionHeaders, row], { newline: "\n" })}\n`,
+        `${Papa.unparse([connectionHeaders, ...rows], { newline: "\n" })}\n`,
         "utf8"
       )
       return
@@ -76,7 +76,7 @@ async function appendConnection(row: string[]) {
     const separator = csv.endsWith("\n") ? "" : newline
     await appendFile(
       connectionsCsvPath,
-      `${separator}${Papa.unparse([row], { header: false, newline })}${newline}`,
+      `${separator}${Papa.unparse(rows, { header: false, newline })}${newline}`,
       "utf8"
     )
   })
@@ -102,24 +102,33 @@ export async function POST(request: Request) {
   }
 
   const assetId1 = text(body.assetId1)
-  const assetId2 = text(body.assetId2)
-  const connectionType = body.connectionType
+  // Accepts a list of targets, or the original single assetId2/connectionType pair.
+  const requested: unknown[] = Array.isArray(body.connections)
+    ? body.connections
+    : [{ assetId: body.assetId2, connectionType: body.connectionType }]
+  const connections = requested.map((connection) => {
+    const value = (connection && typeof connection === "object" ? connection : {}) as Record<string, unknown>
+    return { assetId: text(value.assetId), connectionType: value.connectionType }
+  })
 
-  if (!assetId1 || !assetId2) {
+  if (!assetId1 || connections.length === 0 || connections.some(({ assetId }) => !assetId)) {
     return errorResponse("Select two NYSTAR programs.", 400)
   }
-  if (assetId1 === assetId2) {
+  if (connections.some(({ assetId }) => assetId === assetId1)) {
     return errorResponse("Select two different NYSTAR programs.", 400)
   }
-  if (connectionType !== "Existing" && connectionType !== "Desired") {
+  if (new Set(connections.map(({ assetId }) => assetId)).size !== connections.length) {
+    return errorResponse("Each NYSTAR program can only be selected once.", 400)
+  }
+  if (connections.some(({ connectionType }) => connectionType !== "Existing" && connectionType !== "Desired")) {
     return errorResponse("Select a connection status.", 400)
   }
 
-  const isDesired = connectionType === "Desired"
-  const followupName = isDesired ? text(body.followupName) : ""
-  const followupEmail = isDesired ? text(body.followupEmail) : ""
-  const followupPhone = isDesired ? text(body.followupPhone) : ""
-  const followupComments = isDesired ? text(body.followupComments) : ""
+  const hasDesired = connections.some(({ connectionType }) => connectionType === "Desired")
+  const followupName = hasDesired ? text(body.followupName) : ""
+  const followupEmail = hasDesired ? text(body.followupEmail) : ""
+  const followupPhone = hasDesired ? text(body.followupPhone) : ""
+  const followupComments = hasDesired ? text(body.followupComments) : ""
   if (followupEmail && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(followupEmail)) {
     return errorResponse("Enter a valid follow-up email address.", 400)
   }
@@ -136,28 +145,35 @@ export async function POST(request: Request) {
         .map((row) => [row.ID.trim(), row])
     )
     const asset1 = assetsById.get(assetId1)
-    const asset2 = assetsById.get(assetId2)
-    if (!asset1 || !asset2) {
+    if (!asset1 || connections.some(({ assetId }) => !assetsById.has(assetId))) {
       return errorResponse("One or more NYSTAR programs are invalid.", 400)
     }
 
-    const connectionId = `CON-${randomUUID()}`
-    await appendConnection([
-      connectionId,
-      assetId1,
-      assetId2,
-      asset1["Asset / Program Name"].trim(),
-      asset2["Asset / Program Name"].trim(),
-      asset2["Host Organization"]?.trim() ?? "",
-      connectionType,
-      new Date().toISOString(),
-      followupName,
-      followupEmail,
-      followupPhone,
-      followupComments,
-    ])
+    const added = new Date().toISOString()
+    const rows = connections.map(({ assetId, connectionType }) => {
+      const asset2 = assetsById.get(assetId)!
+      const isDesired = connectionType === "Desired"
+      return [
+        `CON-${randomUUID()}`,
+        assetId1,
+        assetId,
+        asset1["Asset / Program Name"].trim(),
+        asset2["Asset / Program Name"].trim(),
+        asset2["Host Organization"]?.trim() ?? "",
+        connectionType as string,
+        added,
+        isDesired ? followupName : "",
+        isDesired ? followupEmail : "",
+        isDesired ? followupPhone : "",
+        isDesired ? followupComments : "",
+      ]
+    })
+    await appendConnections(rows)
 
-    return Response.json({ saved: true, connectionId }, { status: 201 })
+    return Response.json(
+      { saved: true, connectionId: rows[0][0], connectionIds: rows.map((row) => row[0]) },
+      { status: 201 }
+    )
   } catch (error) {
     console.error("Failed to save NYSTAR connection", error)
     return errorResponse("Unable to save the connection.", 500)
