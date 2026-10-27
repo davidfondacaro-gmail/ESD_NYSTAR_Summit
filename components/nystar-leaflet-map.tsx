@@ -479,6 +479,17 @@ function MepRegionsLayer({
   return null
 }
 
+function fitConnectionLists(popup: HTMLElement, availableHeight: number) {
+  const body = popup.querySelector<HTMLElement>(".network-popup")
+  const lists = Array.from(popup.querySelectorAll<HTMLElement>(".network-popup__connection-list"))
+  if (!body || !lists.length) return
+  for (const list of lists) list.style.maxHeight = ""
+  const overflow = body.offsetHeight - availableHeight
+  if (overflow <= 0) return
+  const share = Math.ceil(overflow / lists.length)
+  for (const list of lists) list.style.maxHeight = `${Math.max(48, list.clientHeight - share)}px`
+}
+
 function PopupPlacement() {
   const map = useMap()
 
@@ -516,9 +527,8 @@ function PopupPlacement() {
       const mapElement = map.getContainer()
       const size = map.getSize()
       const content = element.querySelector<HTMLElement>(".leaflet-popup-content")
-      const assets = element.querySelector<HTMLElement>(".network-popup__assets")
       if (content) content.style.maxWidth = `${Math.max(40, size.x - 56)}px`
-      if (assets) assets.style.maxHeight = `${Math.max(40, Math.min(260, size.y - 80))}px`
+      fitConnectionLists(element, size.y - 80)
 
       let pointer = element.querySelector<HTMLElement>(".network-popup-arrow")
       if (!pointer) {
