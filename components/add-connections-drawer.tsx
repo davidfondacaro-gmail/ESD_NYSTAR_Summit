@@ -4,18 +4,15 @@ import { useRouter } from "next/navigation"
 import { useState, type ChangeEvent, type FormEvent } from "react"
 import { ChevronRight, Plus, TriangleAlert } from "lucide-react"
 
+import NystarProgramTree, {
+  type ProgramTreeGrouping,
+} from "@/components/nystar-program-tree"
 import OrganizationDetailsFields, {
   emptyOrganizationDetails,
   type OrganizationDetails,
 } from "@/components/organization-details-fields"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { Checkbox } from "@/components/ui/checkbox"
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible"
 import {
   Drawer,
   DrawerClose,
@@ -38,18 +35,13 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip"
+import MarkAllConnectionTypes from "@/components/mark-all-connection-types"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { cn } from "@/lib/utils"
 import { postalCodeError } from "@/lib/ny-zip-codes"
 import type { RecentConnection } from "@/lib/recent-connection"
 
-type GroupingMode = "type" | "region"
 type ConnectionType = "Existing" | "Desired"
 
 type FollowupDetails = {
@@ -81,7 +73,7 @@ export default function AddConnectionsDrawer({
   regions: NystarProgramGroup[]
   partners: string[]
   onStart?: () => void
-  onSaved?: (connections: RecentConnection[]) => void
+  onSaved?: (connections: RecentConnection[], partnerName: string) => void
   trigger?: React.ReactElement
   existingPartnerName?: string
   connectedAssetIds?: string[]
@@ -92,7 +84,7 @@ export default function AddConnectionsDrawer({
   const [drawerOpen, setDrawerOpen] = useState(false)
   const firstStep = existingPartnerName ? 2 : 1
   const [step, setStep] = useState<1 | 2 | 3>(firstStep)
-  const [groupingMode, setGroupingMode] = useState<GroupingMode>("type")
+  const [groupingMode, setGroupingMode] = useState<ProgramTreeGrouping>("type")
   const [details, setDetails] = useState<OrganizationDetails>(
     emptyOrganizationDetails
   )
@@ -116,9 +108,7 @@ export default function AddConnectionsDrawer({
   )
   const [skippedConnections, setSkippedConnections] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
   const [formError, setFormError] = useState("")
-  const [formMessage, setFormMessage] = useState("")
 
   function resetForm() {
     setStep(firstStep)
@@ -136,9 +126,13 @@ export default function AddConnectionsDrawer({
     setOpenCategories(new Set())
     setSkippedConnections(false)
     setIsSubmitting(false)
-    setHasSubmitted(false)
     setFormError("")
-    setFormMessage("")
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false)
+    onOpenChange?.(false)
+    resetForm()
   }
 
   function updateDetails(event: ChangeEvent<HTMLInputElement>) {
@@ -233,22 +227,20 @@ export default function AddConnectionsDrawer({
                   },
                 ]
               : []
-          })
+          }),
+          existingPartnerName ?? details.organizationName.trim()
         )
       }
       toast.add({
         title: skippedConnections
           ? "Company added, thanks!"
-          : "Connection added, thanks!",
+          : selectedPrograms.size > 1
+            ? "Connections added, thanks!"
+            : "Connection added, thanks!",
         type: "success",
       })
 
-      setHasSubmitted(true)
-      setFormMessage(
-        existingPartnerName
-          ? `NYSTAR connections were added for ${existingPartnerName}.`
-          : `${details.organizationName} was added to the network.`
-      )
+      closeDrawer()
       router.refresh()
     } catch (error) {
       setFormError(
@@ -261,20 +253,17 @@ export default function AddConnectionsDrawer({
     }
   }
 
-  function toggleProgram(
-    programId: string,
-    checked: boolean | "indeterminate"
-  ) {
+  function toggleProgram(programId: string, checked: boolean) {
     setSelectedPrograms((current) => {
       const next = new Set(current)
-      if (checked === true) {
+      if (checked) {
         next.add(programId)
       } else {
         next.delete(programId)
       }
       return next
     })
-    if (checked !== true) {
+    if (!checked) {
       setConnectionTypes((current) => {
         const next = new Map(current)
         next.delete(programId)
@@ -338,18 +327,6 @@ export default function AddConnectionsDrawer({
         ? `Already connected: ${duplicatePrograms.map((program) => program.name).join("; ")}. Remove these selections to continue.`
         : ""
 
-  function toggleCategory(categoryName: string, open: boolean) {
-    setOpenCategories((current) => {
-      const next = new Set(current)
-      if (open) {
-        next.add(categoryName)
-      } else {
-        next.delete(categoryName)
-      }
-      return next
-    })
-  }
-
   return (
     <Drawer
       open={open ?? drawerOpen}
@@ -406,7 +383,7 @@ export default function AddConnectionsDrawer({
                 setSkippedConnections(true)
                 setStep(3)
               }}
-              disabled={isSubmitting || hasSubmitted}
+              disabled={isSubmitting}
             >
               Skip this step
               <ChevronRight data-icon="inline-end" />
@@ -429,123 +406,17 @@ export default function AddConnectionsDrawer({
                 }
               />
             ) : step === 2 ? (
-              <FieldGroup className="gap-3">
-                <div className="flex w-full items-center justify-between gap-3">
-                  <ToggleGroup
-                    aria-label="Organize by"
-                    value={[groupingMode]}
-                    onValueChange={(value) => {
-                      const nextMode = value[0]
-                      if (nextMode === "type" || nextMode === "region") {
-                        setGroupingMode(nextMode)
-                        setOpenCategories(new Set())
-                      }
-                    }}
-                    variant="outline"
-                    size="sm"
-                    spacing={0}
-                  >
-                    <ToggleGroupItem
-                      className="drawer-review-control"
-                      value="type"
-                    >
-                      Program Type
-                    </ToggleGroupItem>
-                    <Tooltip>
-                      <ToggleGroupItem
-                        className="drawer-review-control"
-                        value="region"
-                        render={<TooltipTrigger />}
-                      >
-                        ESD Region
-                      </ToggleGroupItem>
-                      <TooltipContent>
-                        Empire State Development regions
-                      </TooltipContent>
-                    </Tooltip>
-                  </ToggleGroup>
-                  <p className="shrink-0 text-right text-sm text-muted-foreground">
-                    {selectedPrograms.size} selected
-                  </p>
-                </div>
-                <ul className="flex flex-col gap-2">
-                  {(groupingMode === "type" ? categories : regions).map(
-                    (group) => {
-                      const open = openCategories.has(group.name)
-                      return (
-                        <li key={`${groupingMode}-${group.name}`}>
-                          <Collapsible
-                            open={open}
-                            onOpenChange={(nextOpen) =>
-                              toggleCategory(group.name, nextOpen)
-                            }
-                            className="rounded-md border border-border"
-                          >
-                            <CollapsibleTrigger
-                              render={
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  className="h-auto min-h-8 w-full justify-start gap-2 px-3 py-3 text-left whitespace-normal"
-                                />
-                              }
-                            >
-                              <ChevronRight
-                                aria-hidden="true"
-                                className={`shrink-0 transition-transform ${open ? "rotate-90" : ""}`}
-                                data-icon="inline-start"
-                              />
-                              <span>{group.name}</span>
-                              <span className="ml-auto shrink-0 text-xs text-muted-foreground">
-                                {group.programs.length}
-                              </span>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="border-t border-border px-3 py-2">
-                              <FieldGroup className="gap-1">
-                                {group.programs.map((program) => (
-                                  <Field
-                                    key={program.id}
-                                    orientation="horizontal"
-                                    className="items-start gap-3 rounded-sm py-2"
-                                  >
-                                    <Checkbox
-                                      id={program.id}
-                                      checked={selectedPrograms.has(program.id)}
-                                      onCheckedChange={(checked) =>
-                                        toggleProgram(program.id, checked)
-                                      }
-                                    />
-                                    <FieldContent>
-                                      <FieldLabel
-                                        htmlFor={program.id}
-                                        className="cursor-pointer drawer-field-label"
-                                      >
-                                        {program.name}
-                                      </FieldLabel>
-                                      {program.details && (
-                                        <FieldDescription className="text-xs">
-                                          {groupingMode === "region"
-                                            ? `${program.category} · ${program.details}`
-                                            : program.details}
-                                        </FieldDescription>
-                                      )}
-                                      {connectedAssetIdSet.has(program.id) && (
-                                        <FieldDescription className="text-xs">
-                                          Already connected
-                                        </FieldDescription>
-                                      )}
-                                    </FieldContent>
-                                  </Field>
-                                ))}
-                              </FieldGroup>
-                            </CollapsibleContent>
-                          </Collapsible>
-                        </li>
-                      )
-                    }
-                  )}
-                </ul>
-              </FieldGroup>
+              <NystarProgramTree
+                categories={categories}
+                regions={regions}
+                selectedIds={selectedPrograms}
+                onToggle={toggleProgram}
+                groupingMode={groupingMode}
+                onGroupingModeChange={setGroupingMode}
+                openGroups={openCategories}
+                onOpenGroupsChange={setOpenCategories}
+                connectedIds={connectedAssetIdSet}
+              />
             ) : (
               <FieldGroup className="gap-5">
                 <section
@@ -580,6 +451,22 @@ export default function AddConnectionsDrawer({
                         ({selectedProgramDetails.length})
                       </span>
                     </div>
+                    {selectedProgramDetails.length > 1 && (
+                      <MarkAllConnectionTypes
+                        ids={selectedProgramDetails.map((program) => program.id)}
+                        types={connectionTypes}
+                        onMarkAll={(type) =>
+                          setConnectionTypes(
+                            new Map(
+                              selectedProgramDetails.map((program) => [
+                                program.id,
+                                type,
+                              ])
+                            )
+                          )
+                        }
+                      />
+                    )}
                     <ol className="list-decimal pl-6 marker:text-muted-foreground">
                       {selectedProgramDetails.map((program) => (
                         <li key={program.id} className="pl-1">
@@ -763,11 +650,6 @@ export default function AddConnectionsDrawer({
               {formError}
             </p>
           )}
-          {formMessage && (
-            <p className="px-6 pt-3 text-sm text-foreground" role="status">
-              {formMessage}
-            </p>
-          )}
           <DrawerFooter className="gap-3 border-t px-6 py-4 pt-4">
             {duplicateWarning && (
               <Alert variant="warning">
@@ -810,7 +692,7 @@ export default function AddConnectionsDrawer({
                       size="lg"
                       className="min-w-24"
                       onClick={() => setStep(1)}
-                      disabled={isSubmitting || hasSubmitted}
+                      disabled={isSubmitting}
                     >
                       Back
                     </Button>
@@ -823,7 +705,6 @@ export default function AddConnectionsDrawer({
                     disabled={
                       selectedPrograms.size === 0 ||
                       isSubmitting ||
-                      hasSubmitted ||
                       Boolean(duplicateWarning)
                     }
                   >
@@ -838,7 +719,7 @@ export default function AddConnectionsDrawer({
                     size="lg"
                     className="min-w-24"
                     onClick={() => setStep(2)}
-                    disabled={isSubmitting || hasSubmitted}
+                    disabled={isSubmitting}
                   >
                     Back
                   </Button>
@@ -850,19 +731,14 @@ export default function AddConnectionsDrawer({
                     disabled={
                       (!skippedConnections && !canSubmit) ||
                       Boolean(duplicateWarning) ||
-                      isSubmitting ||
-                      hasSubmitted
+                      isSubmitting
                     }
                   >
                     {isSubmitting
                       ? "Saving…"
-                      : hasSubmitted
-                        ? skippedConnections
-                          ? "Saved"
-                          : "Added"
-                        : skippedConnections
-                          ? "Save"
-                          : "Submit"}
+                      : skippedConnections
+                        ? "Save"
+                        : "Submit"}
                   </Button>
                 </>
               )}

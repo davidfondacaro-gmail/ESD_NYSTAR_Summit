@@ -7,7 +7,9 @@ import { Info, Link, TriangleAlert } from "lucide-react"
 import InnovationPartnerPicker, {
   type PartnerRegionGroup,
 } from "@/components/innovation-partner-picker"
-import NystarProgramPicker from "@/components/nystar-program-picker"
+import NystarProgramTree, {
+  type ProgramTreeGrouping,
+} from "@/components/nystar-program-tree"
 import OrganizationDetailsFields, {
   emptyOrganizationDetails,
   type OrganizationDetails,
@@ -39,6 +41,8 @@ import { Separator } from "@/components/ui/separator"
 import { SIDEBAR_WIDTH } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import MarkAllConnectionTypes from "@/components/mark-all-connection-types"
 import { categoryColor } from "@/lib/nystar-category-colors"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { existingConnectionTargets } from "@/lib/network-connections"
@@ -62,6 +66,8 @@ function ProgramType({ category }: { category: string }) {
     </div>
   )
 }
+
+type ProgramConnectionType = "Existing" | "Desired"
 
 type FollowupDetails = {
   followupName: string
@@ -117,7 +123,16 @@ export default function ConnectProgramDrawer({
     onOpenChange?.(nextOpen)
   }
   const [connectionType, setConnectionType] = useState("")
-  const [targetProgramId, setTargetProgramId] = useState("")
+  const [targetProgramIds, setTargetProgramIds] = useState<Set<string>>(
+    () => new Set()
+  )
+  const [programConnectionTypes, setProgramConnectionTypes] = useState<
+    Map<string, ProgramConnectionType>
+  >(() => new Map())
+  const [treeGrouping, setTreeGrouping] = useState<ProgramTreeGrouping>("type")
+  const [treeOpenGroups, setTreeOpenGroups] = useState<Set<string>>(
+    () => new Set()
+  )
   const [targetPartnerName, setTargetPartnerName] = useState("")
   const [connectionStatus, setConnectionStatus] = useState("")
   const [isReview, setIsReview] = useState(false)
@@ -132,7 +147,10 @@ export default function ConnectProgramDrawer({
     email: false,
     phone: false,
   })
-  const isDesired = connectionStatus === "desired"
+  const isProgramConnection = connectionType === "nystar-to-nystar"
+  const isDesired = isProgramConnection
+    ? [...programConnectionTypes.values()].includes("Desired")
+    : connectionStatus === "desired"
   const followupEmail = followup.followupEmail.trim()
   const followupPhone = followup.followupPhone.trim()
   const followupEmailInvalid =
@@ -150,14 +168,11 @@ export default function ConnectProgramDrawer({
   const titleRef = useRef<HTMLHeadingElement>(null)
   const allPrograms = categories.flatMap((group) => group.programs)
   const sourceProgram = allPrograms.find((program) => program.id === programId)
-  const targetProgram = allPrograms.find(
-    (program) => program.id === targetProgramId
+  const targetPrograms = allPrograms.filter((program) =>
+    targetProgramIds.has(program.id)
   )
   const showConnectionStatus =
-    (connectionType === "nystar-to-nystar" &&
-      Boolean(targetProgram) &&
-      targetProgramId !== programId) ||
-    (connectionType === "nystar-to-partner" && Boolean(targetPartnerName))
+    connectionType === "nystar-to-partner" && Boolean(targetPartnerName)
   const hasConnectionStatus =
     connectionStatus === "existing" || connectionStatus === "desired"
   const newPartnerName = newPartner.organizationName.trim()
@@ -173,18 +188,23 @@ export default function ConnectProgramDrawer({
     programConnections,
     locations
   )
-  const duplicateConnection =
-    connectionType === "nystar-to-nystar"
-      ? connectedTargets.programIds.has(targetProgramId)
-      : connectionType === "nystar-to-partner" &&
-        !isAddingPartner &&
-        connectedTargets.partnerNames.some(
-          (name) =>
-            normalizeOrganizationName(name) ===
-            normalizeOrganizationName(targetPartnerName)
-        )
-  const duplicateWarning = duplicateConnection
-    ? `A connection to ${connectionType === "nystar-to-nystar" ? targetProgram?.name : targetPartnerName} already exists. Select a different organization.`
+  const duplicatePrograms = isProgramConnection
+    ? targetPrograms.filter((program) =>
+        connectedTargets.programIds.has(program.id)
+      )
+    : []
+  const duplicatePartner =
+    connectionType === "nystar-to-partner" &&
+    !isAddingPartner &&
+    connectedTargets.partnerNames.some(
+      (name) =>
+        normalizeOrganizationName(name) ===
+        normalizeOrganizationName(targetPartnerName)
+    )
+  const duplicateWarning = duplicatePrograms.length > 0
+    ? `Already connected: ${duplicatePrograms.map((program) => program.name).join("; ")}. Remove these selections to continue.`
+    : duplicatePartner
+    ? `A connection to ${targetPartnerName} already exists. Select a different organization.`
     : isAddingPartner && newPartnerNameTaken
       ? `An organization named "${newPartnerName}" already exists. Select it from the partner list instead.`
       : ""
@@ -195,13 +215,16 @@ export default function ConnectProgramDrawer({
     Boolean(newPartner.city.trim()) &&
     Boolean(newPartner.postalCode.trim()) &&
     !postalCodeError(newPartner.postalCode)
-  const canReview =
-    hasConnectionStatus &&
-    (isAddingPartner
-      ? newPartnerIsValid
-      : connectionType === "nystar-to-nystar"
-        ? Boolean(targetProgram) && targetProgramId !== programId
+  const canReview = isProgramConnection
+    ? targetPrograms.length > 0
+    : hasConnectionStatus &&
+      (isAddingPartner
+        ? newPartnerIsValid
         : connectionType === "nystar-to-partner" && Boolean(targetPartnerName))
+  const canSave =
+    !isProgramConnection ||
+    (targetPrograms.length > 0 &&
+      targetPrograms.every((program) => programConnectionTypes.has(program.id)))
 
   useEffect(() => {
     titleRef.current?.focus()
@@ -209,7 +232,10 @@ export default function ConnectProgramDrawer({
 
   function resetForm() {
     setConnectionType("")
-    setTargetProgramId("")
+    setTargetProgramIds(new Set())
+    setProgramConnectionTypes(new Map())
+    setTreeGrouping("type")
+    setTreeOpenGroups(new Set())
     setTargetPartnerName("")
     setConnectionStatus("")
     setIsReview(false)
@@ -224,6 +250,35 @@ export default function ConnectProgramDrawer({
     setTargetPartnerName("")
     setConnectionStatus("")
     setIsAddingPartner(true)
+  }
+
+  function toggleTargetProgram(targetId: string, checked: boolean) {
+    setTargetProgramIds((current) => {
+      const next = new Set(current)
+      if (checked) next.add(targetId)
+      else next.delete(targetId)
+      return next
+    })
+    if (!checked) {
+      setProgramConnectionTypes((current) => {
+        const next = new Map(current)
+        next.delete(targetId)
+        return next
+      })
+    }
+  }
+
+  function setProgramConnectionType(targetId: string, value: string[]) {
+    const nextType = value[0]
+    setProgramConnectionTypes((current) => {
+      const next = new Map(current)
+      if (nextType === "Existing" || nextType === "Desired") {
+        next.set(targetId, nextType)
+      } else {
+        next.delete(targetId)
+      }
+      return next
+    })
   }
 
   function updateFollowup(field: keyof FollowupDetails, value: string) {
@@ -252,6 +307,10 @@ export default function ConnectProgramDrawer({
     try {
       const status = isDesired ? "Desired" : "Existing"
       const isPartnerConnection = connectionType === "nystar-to-partner"
+      const programTargets = targetPrograms.flatMap((program) => {
+        const type = programConnectionTypes.get(program.id)
+        return type ? [{ assetId: program.id, connectionType: type }] : []
+      })
       const response = isPartnerConnection
         ? await fetch("/api/customer-locations", {
             method: "POST",
@@ -269,8 +328,7 @@ export default function ConnectProgramDrawer({
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               assetId1: programId,
-              assetId2: targetProgramId,
-              connectionType: status,
+              connections: programTargets,
               ...(isDesired ? followup : {}),
             }),
           })
@@ -281,20 +339,30 @@ export default function ConnectProgramDrawer({
       if (!response.ok) {
         throw new Error(result.error ?? "Unable to save the connection.")
       }
-      const targetId = isPartnerConnection ? result.customerId : targetProgramId
-      if (targetId) {
+      if (isPartnerConnection && result.customerId) {
         onSaved?.([
           {
             fromAssetId: programId,
-            to: {
-              kind: isPartnerConnection ? "partner" : "asset",
-              id: targetId,
-            },
+            to: { kind: "partner", id: result.customerId },
             connectionType: status,
           },
         ])
+      } else if (!isPartnerConnection) {
+        onSaved?.(
+          programTargets.map((target) => ({
+            fromAssetId: programId,
+            to: { kind: "asset", id: target.assetId },
+            connectionType: target.connectionType,
+          }))
+        )
       }
-      toast.add({ title: "Connection added, thanks!", type: "success" })
+      toast.add({
+        title:
+          !isPartnerConnection && programTargets.length > 1
+            ? "Connections added, thanks!"
+            : "Connection added, thanks!",
+        type: "success",
+      })
       setIsSaving(false)
       setOpen(false)
       resetForm()
@@ -356,13 +424,19 @@ export default function ConnectProgramDrawer({
         <DrawerHeader className="relative px-6 pt-7 pb-5">
           <DrawerTitle ref={titleRef} tabIndex={-1}>
             {isReview
-              ? "Review Connection"
+              ? isProgramConnection && targetPrograms.length > 1
+                ? "Review Connections"
+                : "Review Connection"
               : isAddingPartner
                 ? "Add a Partner"
                 : "Connect to NYSTAR Program"}
           </DrawerTitle>
           <DrawerDescription>
-            {isReview ? "Review the connection before saving." : programName}
+            {isReview
+              ? isProgramConnection
+                ? "Set the status of each connection before saving."
+                : "Review the connection before saving."
+              : programName}
           </DrawerDescription>
           {!isReview && !isAddingPartner && sourceProgram && (
             <ProgramType category={sourceProgram.category} />
@@ -407,23 +481,22 @@ export default function ConnectProgramDrawer({
             {connectionType === "nystar-to-nystar" && (
               <FieldSet className="min-w-0">
                 <FieldLegend id={`${id}-target-program`} variant="label">
-                  2. Select a NYSTAR Program
+                  2. Select NYSTAR Programs
                 </FieldLegend>
-                <NystarProgramPicker
+                <NystarProgramTree
                   categories={categories}
                   regions={regions}
-                  labelledBy={`${id}-target-program`}
-                  value={targetProgramId}
-                  onValueChange={(value) => {
-                    setTargetProgramId(value)
-                    if (value !== targetProgramId) setConnectionStatus("")
-                  }}
+                  selectedIds={targetProgramIds}
+                  onToggle={toggleTargetProgram}
+                  groupingMode={treeGrouping}
+                  onGroupingModeChange={setTreeGrouping}
+                  openGroups={treeOpenGroups}
+                  onOpenGroupsChange={setTreeOpenGroups}
+                  connectedIds={connectedTargets.programIds}
+                  disabledIds={new Set([programId])}
+                  disabledNote="This is the program you're connecting from"
+                  idPrefix={`${id}-target-`}
                 />
-                {targetProgramId === programId && (
-                  <p className="text-sm text-destructive" role="alert">
-                    Select a different program than {programName}.
-                  </p>
-                )}
               </FieldSet>
             )}
             {connectionType === "nystar-to-partner" && (
@@ -502,11 +575,61 @@ export default function ConnectProgramDrawer({
                   </span>
                   <Separator className="min-w-0 flex-1" />
                 </div>
-                {connectionType === "nystar-to-nystar" && targetProgram && (
-                  <div className="flex flex-col gap-1">
-                    <p>{targetProgram.name}</p>
-                    <ProgramType category={targetProgram.category} />
-                  </div>
+                {isProgramConnection && targetPrograms.length > 1 && (
+                  <MarkAllConnectionTypes
+                    ids={targetPrograms.map((program) => program.id)}
+                    types={programConnectionTypes}
+                    disabled={isSaving}
+                    onMarkAll={(type) =>
+                      setProgramConnectionTypes(
+                        new Map(
+                          targetPrograms.map((program) => [program.id, type])
+                        )
+                      )
+                    }
+                  />
+                )}
+                {isProgramConnection && (
+                  <ol className="list-decimal pl-6 marker:text-muted-foreground">
+                    {targetPrograms.map((program) => (
+                      <li key={program.id} className="pl-1">
+                        <Field className="flex-row flex-wrap items-center justify-between gap-3 border-b border-border py-3 last:border-b-0">
+                          <div className="flex min-w-0 flex-col gap-1">
+                            <p>{program.name}</p>
+                            <ProgramType category={program.category} />
+                          </div>
+                          <ToggleGroup
+                            aria-label={`Connection status for ${program.name}`}
+                            value={
+                              programConnectionTypes.has(program.id)
+                                ? [programConnectionTypes.get(program.id)!]
+                                : []
+                            }
+                            onValueChange={(value) =>
+                              setProgramConnectionType(program.id, value)
+                            }
+                            disabled={isSaving}
+                            variant="outline"
+                            size="sm"
+                            spacing={0}
+                          >
+                            <ToggleGroupItem
+                              className="drawer-review-control"
+                              value="Existing"
+                            >
+                              Existing
+                            </ToggleGroupItem>
+                            <ToggleGroupItem
+                              className="drawer-review-control"
+                              value="Desired"
+                            >
+                              Desired
+                            </ToggleGroupItem>
+                          </ToggleGroup>
+                        </Field>
+                      </li>
+                    ))}
+                  </ol>
                 )}
                 {connectionType === "nystar-to-partner" && (
                   <div className="flex flex-col gap-1">
@@ -535,12 +658,16 @@ export default function ConnectProgramDrawer({
                   </div>
                 )}
               </div>
-              <Separator />
-              <p>
-                {connectionStatus === "existing"
-                  ? "This is a past/existing connection."
-                  : "This is a new/desired connection."}
-              </p>
+              {!isProgramConnection && (
+                <>
+                  <Separator />
+                  <p>
+                    {connectionStatus === "existing"
+                      ? "This is a past/existing connection."
+                      : "This is a new/desired connection."}
+                  </p>
+                </>
+              )}
               {isDesired && (
                 <FieldGroup className="gap-4 border-t border-border pt-4">
                   <div>
@@ -717,10 +844,14 @@ export default function ConnectProgramDrawer({
                 <Button
                   type="button"
                   variant="brand"
-                  disabled={isSaving || Boolean(duplicateWarning)}
+                  disabled={isSaving || !canSave || Boolean(duplicateWarning)}
                   onClick={() => void saveConnection()}
                 >
-                  {isSaving ? "Saving…" : "Save Connection"}
+                  {isSaving
+                    ? "Saving…"
+                    : isProgramConnection && targetPrograms.length > 1
+                      ? "Save Connections"
+                      : "Save Connection"}
                 </Button>
               </>
             ) : (

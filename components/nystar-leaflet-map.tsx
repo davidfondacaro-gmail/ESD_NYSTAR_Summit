@@ -4,6 +4,7 @@ import L from "leaflet"
 import Image from "next/image"
 import { arrow, computePosition, offset, platform, shift, type Placement } from "@floating-ui/dom"
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react"
+import { createPortal } from "react-dom"
 import MarkerClusterGroup from "react-leaflet-cluster"
 import {
   MapContainer,
@@ -11,14 +12,22 @@ import {
   Pane,
   Popup,
   Polyline,
-  ZoomControl,
   useMap,
   useMapEvents,
 } from "react-leaflet"
 
 import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
-import { Link } from "lucide-react"
+import { Link, Pentagon } from "lucide-react"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { CATEGORY_COLORS } from "@/lib/nystar-category-colors"
 import type {
   NystarLocationGroup,
@@ -27,6 +36,8 @@ import type {
 import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 import { connectedOrganizationsForPopup, connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
+import { filterLegendLocations } from "@/lib/network-legend"
+import { calloutAnchor, layoutPointLabels, type Box, type PlacedLabel } from "@/lib/map-point-labels"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
 const DEFAULT_MAP_ZOOM = 7.5
@@ -191,7 +202,92 @@ function RecenterMapOnSidebarClose({ touring }: { touring: boolean }) {
   return null
 }
 
-function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: boolean }) {
+// Outline of New York State generated from the MEP region boundaries (24×24 viewBox).
+const NY_STATE_ICON_PATH = "M16.3 11.8 16.3 12.2 16.6 12.1 16.3 13.5 15.8 13.5 15.0 12.9 13.1 13.7 13.6 11.6 13.0 11.6 12.2 10.5 11.8 10.5 11.8 9.8 12.0 9.2 12.8 9.5 13.9 8.7 13.8 6.9 14.7 7.0 14.9 9.2 14.6 9.8 15.5 10.2 16.6 10.1 16.8 11.5ZM10.8 13.3 11.8 13.3 11.8 12.1 13.4 12.0 13.1 13.7 15.1 12.9 15.8 13.5 15.5 14.1 15.8 14.2 13.8 15.4 13.3 14.9 6.6 14.9 6.8 12.7 8.3 12.7 8.3 13.0 8.8 13.1 9.0 12.8 9.8 12.8 9.6 12.5 10.7 12.5ZM18.8 12.9 18.3 14.9 17.2 14.6 17.0 14.2 16.8 14.5 15.5 14.1 15.8 13.5 16.4 13.4 16.6 12.1 16.2 12.0 16.8 11.5 16.4 8.3 18.8 8.1 18.5 9.0 18.9 8.7 19.1 9.0ZM11.5 6.1 13.4 4.1 14.6 3.5 18.8 3.4 18.8 4.6 18.6 4.6 18.9 6.2 18.5 7.1 18.7 8.0 16.4 8.3 16.6 10.1 16.4 10.2 15.5 10.2 14.6 9.8 14.9 9.2 14.7 7.0 13.8 6.9 13.9 8.7 12.8 9.5 12.1 9.3 12.1 8.4 10.9 8.5 10.6 7.8 10.9 7.6 10.9 7.8 11.3 7.3 10.9 7.4 11.2 7.1 10.9 7.0 10.7 7.4 10.4 6.9ZM2.9 14.9 1.0 14.9 1.0 13.8 2.7 12.8 3.5 11.9 3.4 10.9 2.9 10.7 2.9 10.1 4.6 9.7 4.6 12.9 6.7 13.1 6.6 14.9ZM16.8 20.0 16.3 20.6 16.5 20.0ZM17.0 19.9 17.3 19.5 17.9 19.6 17.8 20.0 17.3 20.1 17.4 20.3 17.0 20.3ZM17.2 19.4 17.3 19.0 17.6 19.1 17.6 19.4ZM18.4 19.0 18.5 19.2 18.5 18.9 18.6 19.1 18.7 18.8 19.3 19.1 19.5 18.7 21.1 18.7 21.8 18.1 20.9 19.0 21.4 19.0 21.7 18.5 21.7 18.7 22.2 18.5 22.3 18.7 23.0 18.4 21.3 19.3 21.5 19.1 21.2 19.1 20.2 19.7 19.4 19.6 17.9 20.2 17.7 20.1 17.7 19.3 18.0 19.4 18.1 19.0ZM17.3 18.7 15.0 17.0 14.3 16.8 13.8 15.4 15.8 14.2 16.8 14.5 17.0 14.2 17.2 14.6 18.3 14.9 18.5 14.7 18.3 17.5 18.5 17.9 17.8 18.3 18.0 18.7 17.7 19.1 17.3 19.0ZM5.7 12.9 4.6 12.9 4.6 9.7 6.6 9.8 7.2 10.2 9.5 9.8 9.4 12.1 9.8 12.8 9.0 12.8 8.8 13.1 8.3 13.0 8.3 12.7 6.8 12.7 6.7 13.1ZM11.8 12.2 11.8 13.3 10.8 13.3 10.7 12.5 9.6 12.5 9.4 12.0 9.5 9.8 10.3 9.1 10.8 9.0 10.9 8.5 11.4 8.4 12.1 8.4 11.8 10.5 12.2 10.5 12.7 11.3 13.6 11.7 13.4 12.0Z"
+
+function NyStateIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" className="nystar-map-toolbar__icon">
+      <path d={NY_STATE_ICON_PATH} fill="currentColor" stroke="currentColor"
+        strokeWidth={0.5} strokeLinejoin="round" />
+    </svg>
+  )
+}
+
+function MapToolbar({ regions, activeRegion, onSelectRegion, onStatewide }: {
+  regions: string[]
+  activeRegion: string | null
+  onSelectRegion: (region: string) => void
+  onStatewide: () => void
+}) {
+  const map = useMap()
+  const [element] = useState(() => {
+    const container = L.DomUtil.create("div", "leaflet-bar nystar-map-toolbar")
+    L.DomEvent.disableClickPropagation(container)
+    L.DomEvent.disableScrollPropagation(container)
+    return container
+  })
+  const [zoom, setZoom] = useState(() => map.getZoom())
+  useMapEvents({ zoomend: () => setZoom(map.getZoom()) })
+
+  useEffect(() => {
+    const control = new L.Control({ position: "bottomright" })
+    control.onAdd = () => element
+    control.addTo(map)
+    return () => {
+      control.remove()
+    }
+  }, [element, map])
+
+  return createPortal(
+    <>
+      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-in"
+        aria-label="Zoom in" title="Zoom in" disabled={zoom >= map.getMaxZoom()}
+        onClick={() => map.zoomIn()}>
+        <span aria-hidden="true">+</span>
+      </button>
+      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-out"
+        aria-label="Zoom out" title="Zoom out" disabled={zoom <= map.getMinZoom()}
+        onClick={() => map.zoomOut()}>
+        <span aria-hidden="true">&#x2212;</span>
+      </button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={<button type="button" className="nystar-map-toolbar__button" />}
+          aria-label="Zoom to region" title="Zoom to region" disabled={regions.length === 0}
+        >
+          <Pentagon aria-hidden="true" className="nystar-map-toolbar__icon" />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent side="left" align="end" sideOffset={8} className="w-auto min-w-48">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Zoom to region</DropdownMenuLabel>
+            <DropdownMenuRadioGroup value={activeRegion ?? ""} onValueChange={onSelectRegion}>
+              {regions.map((region) => (
+                <DropdownMenuRadioItem key={region} value={region} closeOnClick>
+                  {region}
+                </DropdownMenuRadioItem>
+              ))}
+            </DropdownMenuRadioGroup>
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      <button type="button" className="nystar-map-toolbar__button"
+        aria-label="Statewide view" title="Statewide view" onClick={onStatewide}>
+        <NyStateIcon />
+      </button>
+    </>,
+    element
+  )
+}
+
+function MapZoomControls({ enabled, touring, regions, activeRegion, onSelectRegion, onStatewide }: {
+  enabled: boolean
+  touring: boolean
+  regions: string[]
+  activeRegion: string | null
+  onSelectRegion: (region: string) => void
+  onStatewide: () => void
+}) {
   const map = useMap()
 
   useEffect(() => {
@@ -223,7 +319,13 @@ function MapZoomControls({ enabled, touring }: { enabled: boolean; touring: bool
     wasTouring.current = touring
   }, [enabled, map, touring])
 
-  return enabled ? <ZoomControl position="bottomright" /> : null
+  return enabled ? (
+    <MapToolbar regions={regions} activeRegion={activeRegion}
+      onSelectRegion={onSelectRegion} onStatewide={() => {
+        onStatewide()
+        resetStatewideView(map)
+      }} />
+  ) : null
 }
 
 function regionStyle(selected: boolean): L.PathOptions {
@@ -237,10 +339,11 @@ function regionStyle(selected: boolean): L.PathOptions {
 }
 
 function MepRegionsLayer({
-  showRegionLabels, activeRegion, onRegionStatus, onGeometry,
+  showRegionLabels, activeRegion, fitRevision = 0, onRegionStatus, onGeometry,
 }: {
   showRegionLabels: boolean
   activeRegion: string | null
+  fitRevision?: number
   onRegionStatus: (region: string, error: string | null) => void
   onGeometry: (geometry: GeoJSON.GeoJsonObject) => void
 }) {
@@ -283,7 +386,7 @@ function MepRegionsLayer({
     fitRegion()
     map.on("resize", fitRegion)
     return () => { map.off("resize", fitRegion) }
-  }, [activeRegion, regionData, map, onRegionStatus])
+  }, [activeRegion, fitRevision, regionData, map, onRegionStatus])
 
   useEffect(() => {
     showRegionLabelsRef.current = showRegionLabels
@@ -376,6 +479,17 @@ function MepRegionsLayer({
   return null
 }
 
+function fitConnectionLists(popup: HTMLElement, availableHeight: number) {
+  const body = popup.querySelector<HTMLElement>(".network-popup")
+  const lists = Array.from(popup.querySelectorAll<HTMLElement>(".network-popup__connection-list"))
+  if (!body || !lists.length) return
+  for (const list of lists) list.style.maxHeight = ""
+  const overflow = body.offsetHeight - availableHeight
+  if (overflow <= 0) return
+  const share = Math.ceil(overflow / lists.length)
+  for (const list of lists) list.style.maxHeight = `${Math.max(48, list.clientHeight - share)}px`
+}
+
 function PopupPlacement() {
   const map = useMap()
 
@@ -413,9 +527,8 @@ function PopupPlacement() {
       const mapElement = map.getContainer()
       const size = map.getSize()
       const content = element.querySelector<HTMLElement>(".leaflet-popup-content")
-      const assets = element.querySelector<HTMLElement>(".network-popup__assets")
       if (content) content.style.maxWidth = `${Math.max(40, size.x - 56)}px`
-      if (assets) assets.style.maxHeight = `${Math.max(40, Math.min(260, size.y - 80))}px`
+      fitConnectionLists(element, size.y - 80)
 
       let pointer = element.querySelector<HTMLElement>(".network-popup-arrow")
       if (!pointer) {
@@ -887,6 +1000,111 @@ function markerIcon(
   })
 }
 
+const POINT_LABEL_PANE = "point-labels"
+
+type PointLabel = { id: string; position: L.LatLng; names: string[] }
+
+function PointLabels({ labels }: { labels: PointLabel[] }) {
+  const map = useMap()
+  const [pane] = useState(() => {
+    const existing = map.getPane(POINT_LABEL_PANE)
+    if (existing) return existing
+    const created = map.createPane(POINT_LABEL_PANE)
+    created.style.zIndex = "640"
+    created.style.pointerEvents = "none"
+    return created
+  })
+  const labelRefs = useRef(new Map<string, HTMLSpanElement>())
+  const [layout, setLayout] = useState<{ labels: PointLabel[]; placed: Map<string, PlacedLabel> } | null>(null)
+  const [zooming, setZooming] = useState(false)
+
+  useLayoutEffect(() => {
+    // Measure the rendered labels, then lay them out in layer coordinates so they pan with the map.
+    const update = () => {
+      const size = map.getSize()
+      const topLeft = map.containerPointToLayerPoint([0, 0])
+      const containerRect = map.getContainer().getBoundingClientRect()
+      const toLayerBox = (rect: DOMRect): Box => {
+        const start = map.containerPointToLayerPoint([rect.left - containerRect.left, rect.top - containerRect.top])
+        return { left: start.x, top: start.y, right: start.x + rect.width, bottom: start.y + rect.height }
+      }
+      const root = map.getContainer().parentElement ?? map.getContainer()
+      const boxesFor = (selector: string) => [...root.querySelectorAll(selector)]
+        .map((element) => element.getBoundingClientRect())
+        .filter((rect) => rect.width > 0 && rect.height > 0)
+        .map(toLayerBox)
+      const placed = layoutPointLabels(
+        labels.map((label) => {
+          const point = map.latLngToLayerPoint(label.position)
+          const element = labelRefs.current.get(label.id)
+          // Wrapped text can leave the box wider than its lines, so measure the lines themselves.
+          const left = element?.getBoundingClientRect().left ?? 0
+          const textRight = Math.max(left, ...[...element?.querySelectorAll(".nystar-point-labels__text") ?? []]
+            .flatMap((text) => [...text.getClientRects()].map((rect) => rect.right)))
+          return {
+            id: label.id,
+            x: point.x,
+            y: point.y,
+            width: Math.ceil(textRight - left),
+            height: element?.offsetHeight ?? 0,
+          }
+        }),
+        { left: topLeft.x + 4, top: topLeft.y + 4, right: topLeft.x + size.x - 4, bottom: topLeft.y + size.y - 4 },
+        {
+          hard: boxesFor(".network-map-legend, .leaflet-control"),
+          soft: boxesFor(".nystar-region-label__text"),
+        }
+      )
+      setLayout({ labels, placed: new Map(placed.map((label) => [label.id, label])) })
+      setZooming(false)
+    }
+    const hide = () => setZooming(true)
+    update()
+    map.on("zoomend viewreset resize moveend", update)
+    map.on("zoomstart", hide)
+    return () => {
+      map.off("zoomend viewreset resize moveend", update)
+      map.off("zoomstart", hide)
+    }
+  }, [labels, map])
+
+  const placed = layout?.labels === labels ? layout.placed : null
+  return createPortal(
+    <div className="nystar-point-labels" data-hidden={zooming || !placed || undefined}>
+      <svg className="nystar-point-labels__callouts" aria-hidden="true">
+        {placed && [...placed.values()].filter((label) => label.callout).map((label) => {
+          const anchor = calloutAnchor(label)
+          return (
+            <g key={label.id}>
+              <line x1={label.pointX} y1={label.pointY} x2={anchor.x} y2={anchor.y} />
+              <circle cx={label.pointX} cy={label.pointY} r={2} />
+            </g>
+          )
+        })}
+      </svg>
+      {labels.map((label) => {
+        const position = placed?.get(label.id)
+        return (
+          <span
+            key={label.id}
+            ref={(element) => {
+              if (element) labelRefs.current.set(label.id, element)
+              else labelRefs.current.delete(label.id)
+            }}
+            className="nystar-point-labels__label"
+            style={{ transform: position ? `translate(${position.x}px, ${position.y}px)` : undefined }}
+          >
+            {label.names.map((name, index) => (
+              <span key={index}><span className="nystar-point-labels__text">{name}</span></span>
+            ))}
+          </span>
+        )
+      })}
+    </div>,
+    pane
+  )
+}
+
 function InsetRegions({ geometry, activeRegion }: {
   geometry: GeoJSON.GeoJsonObject
   activeRegion: string
@@ -920,7 +1138,8 @@ function InsetRegions({ geometry, activeRegion }: {
   return null
 }
 
-function TourInset({ geometry, activeRegion, assetId, locations, programConnections, error }: {
+function TourInset({ geometry, activeRegion, assetId, locations, programConnections, error, label = "Statewide tour overview" }: {
+  label?: string
   geometry: GeoJSON.GeoJsonObject | null
   activeRegion: string
   assetId: string
@@ -938,7 +1157,7 @@ function TourInset({ geometry, activeRegion, assetId, locations, programConnecti
     for (const customer of location.customers) positions.set(`partner:${customer.id}`, [location.latitude, location.longitude])
   }
   return (
-    <aside className="network-tour-inset" aria-label={`Statewide tour overview: ${activeRegion}`}>
+    <aside className="network-tour-inset" aria-label={`${label}: ${activeRegion}`}>
       <h2 className="network-tour-inset__heading">{activeRegion}</h2>
       {error ? (
         <p className="network-tour-inset__status" role="alert">{error}</p>
@@ -997,7 +1216,9 @@ export default function NystarLeafletMap({
   selectionRevision,
   showZoomControls,
   showMapLegend,
-  clusterMarkers,
+  legendCategory,
+  onLegendCategoryChange,
+  clusterMarkers: clusterMarkersSetting,
   showRegionLabels,
   showCityLabels,
   recentConnections,
@@ -1020,6 +1241,8 @@ export default function NystarLeafletMap({
   selectionRevision: number
   showZoomControls: boolean
   showMapLegend: boolean
+  legendCategory: string | null
+  onLegendCategoryChange: (category: string | null) => void
   clusterMarkers: boolean
   showRegionLabels: boolean
   showCityLabels: boolean
@@ -1036,6 +1259,16 @@ export default function NystarLeafletMap({
   onManualInteraction: () => void
 }) {
   const [regionGeometry, setRegionGeometry] = useState<GeoJSON.GeoJsonObject | null>(null)
+  // A region chosen from the map toolbar; the tour's region takes precedence over it.
+  const [regionFocus, setRegionFocus] = useState<{ region: string; revision: number } | null>(null)
+  if (regionFocus && (activeTourRegion || !showZoomControls)) setRegionFocus(null)
+  const activeRegion = activeTourRegion ?? regionFocus?.region ?? null
+  const regionNames = useMemo(() => {
+    const features = (regionGeometry as GeoJSON.FeatureCollection | null)?.features ?? []
+    return [...new Set(features
+      .map((feature) => String(feature.properties?.region_name ?? "").trim())
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right))
+  }, [regionGeometry])
   const [regionStatus, setRegionStatus] = useState<{ region: string; error: string | null } | null>(null)
   const onRegionStatus = useCallback((region: string, error: string | null) => {
     setRegionStatus({ region, error })
@@ -1053,10 +1286,21 @@ export default function NystarLeafletMap({
   }, [activeTourRegion, regionStatus, onTourStatus, selectionRevision])
   const markerRefs = useRef(new Map<string, L.Marker>())
   const clusterRef = useRef<L.MarkerClusterGroup | null>(null)
-  const locations = useMemo(
-    () => (clusterMarkers ? groupedLocations : spreadCoLocatedItems(groupedLocations)),
-    [clusterMarkers, groupedLocations]
-  )
+  const [legendPreview, setLegendPreview] = useState<{
+    category: string
+    revision: number
+    selected: string | null
+  } | null>(null)
+  const previewCategory =
+    legendPreview?.revision === selectionRevision &&
+    legendPreview.selected === legendCategory
+      ? legendPreview.category
+      : null
+  const effectiveCategory = showMapLegend && !activeRegion
+    ? previewCategory ?? legendCategory
+    : null
+  // Point labels need individual markers, so clustering pauses while the legend filters.
+  const clusterMarkers = clusterMarkersSetting && !effectiveCategory
   const [mapPopupRequest, setMapPopupRequest] = useState<MapPopupRequest | null>(null)
   const [connectionSelection, setConnectionSelection] = useState<{
     connection: RecentConnection
@@ -1064,8 +1308,51 @@ export default function NystarLeafletMap({
     revision: number
     dismissRevision: number
   } | null>(null)
+  const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
+  const [handledCategory, setHandledCategory] = useState(effectiveCategory)
+  const [popupDismissal, setPopupDismissal] = useState<{
+    selectionRevision: number
+    mapPopupRequest: MapPopupRequest | null
+  } | null>(null)
+  if (popupDismissRevision !== handledDismissRevision || effectiveCategory !== handledCategory) {
+    setHandledCategory(effectiveCategory)
+    setHandledDismissRevision(popupDismissRevision)
+    setPopupDismissal({ selectionRevision, mapPopupRequest })
+    setConnectionSelection(null)
+  }
+  // Popups stay dismissed until a new sidebar selection or marker click.
+  const popupsDismissed =
+    popupDismissal?.selectionRevision === selectionRevision &&
+    popupDismissal.mapPopupRequest === mapPopupRequest
+  // A selected point brings its connected points into the legend-filtered view.
+  const legendFocus = useMemo(() => {
+    if (!effectiveCategory || popupsDismissed) return undefined
+    const customerIds = new Set(selectedProgramId || !selectedPartnerName ? [] : groupedLocations.flatMap(
+      (location) => location.customers.filter((customer) => customer.name === selectedPartnerName).map((customer) => customer.id)
+    ))
+    const assetIds = new Set(selectedProgramId ? [selectedProgramId] : [])
+    if (assetIds.size + customerIds.size === 0) return undefined
+    for (const connection of connectionsForPopup(assetIds, customerIds, programConnections, groupedLocations)) {
+      assetIds.add(connection.fromAssetId)
+      if (connection.to.kind === "asset") assetIds.add(connection.to.id)
+      else customerIds.add(connection.to.id)
+    }
+    return { assetIds, customerIds }
+  }, [effectiveCategory, popupsDismissed, selectedProgramId, selectedPartnerName, programConnections, groupedLocations])
+  const filteredLocations = useMemo(
+    () => filterLegendLocations(groupedLocations, effectiveCategory, legendFocus),
+    [groupedLocations, effectiveCategory, legendFocus]
+  )
+  const locations = useMemo(
+    () => (clusterMarkers ? filteredLocations : spreadCoLocatedItems(filteredLocations)),
+    [clusterMarkers, filteredLocations]
+  )
   const activeConnection = connectionSelection?.revision === selectionRevision &&
-    connectionSelection.dismissRevision === popupDismissRevision
+    connectionSelection.dismissRevision === popupDismissRevision &&
+    locations.some((location) => location.assets.some((asset) => asset.id === connectionSelection.connection.fromAssetId)) &&
+    locations.some((location) => connectionSelection.connection.to.kind === "asset"
+      ? location.assets.some((asset) => asset.id === connectionSelection.connection.to.id)
+      : location.customers.some((customer) => customer.id === connectionSelection.connection.to.id))
     ? connectionSelection : null
   useEffect(() => {
     clusterRef.current?.refreshClusters()
@@ -1081,19 +1368,6 @@ export default function NystarLeafletMap({
   const connectionCustomers = locations.flatMap((location) => location.customers).filter((customer) =>
     activeConnection?.connection.to.kind === "partner" && customer.id === activeConnection.connection.to.id
   )
-  const [handledDismissRevision, setHandledDismissRevision] = useState(popupDismissRevision)
-  const [popupDismissal, setPopupDismissal] = useState<{
-    selectionRevision: number
-    mapPopupRequest: MapPopupRequest | null
-  } | null>(null)
-  if (popupDismissRevision !== handledDismissRevision) {
-    setHandledDismissRevision(popupDismissRevision)
-    setPopupDismissal({ selectionRevision, mapPopupRequest })
-  }
-  // Popups stay dismissed until a new sidebar selection or marker click.
-  const popupsDismissed =
-    popupDismissal?.selectionRevision === selectionRevision &&
-    popupDismissal.mapPopupRequest === mapPopupRequest
   useEffect(() => {
     if (!popupDismissRevision) return
     const group = clusterRef.current as (L.MarkerClusterGroup & { unspiderfy?: () => void }) | null
@@ -1151,8 +1425,15 @@ export default function NystarLeafletMap({
     }
     return positions
   }, [locations])
+  const pointLabels = useMemo(() => effectiveCategory
+    ? locations.map((location) => ({
+        id: `${locationKey(location)}:${[...location.assets.map((asset) => asset.id), ...location.customers.map((customer) => customer.id)].join("|")}`,
+        position: L.latLng(location.latitude, location.longitude),
+        names: [...location.assets.map((asset) => asset.name), ...location.customers.map((customer) => customer.name)],
+      }))
+    : [], [effectiveCategory, locations])
   const mapCategories = Array.from(
-    new Set(locations.flatMap((location) => location.assets.map((asset) => asset.category)))
+    new Set(groupedLocations.flatMap((location) => location.assets.map((asset) => asset.category)))
   ).sort((left, right) => left.localeCompare(right))
   const markers = locations.map((location) => {
     const selectedOnly = !showFullLocation && location === sidebarLocation
@@ -1169,7 +1450,7 @@ export default function NystarLeafletMap({
     if (organizations.length === 0) return null
     return (
       <section className="network-popup__connections" aria-label="Connected organizations">
-        <h3 className="network-popup__primary">Connections</h3>
+        <h3 className="network-popup__primary">Connections ({organizations.length})</h3>
         <ul className="network-popup__connection-list">
           {organizations.map((organization) => (
             <li className="network-popup__connection" key={`${organization.kind}:${organization.id}`}>
@@ -1359,14 +1640,24 @@ export default function NystarLeafletMap({
     >
       <InvalidateMapSize />
       <PopupPlacement />
-      <MapZoomControls enabled={showZoomControls} touring={!!activeTourRegion} />
-      <RecenterMapOnSidebarClose touring={!!activeTourRegion} />
+      <MapZoomControls enabled={showZoomControls} touring={!!activeRegion}
+        regions={regionNames} activeRegion={activeRegion}
+        onSelectRegion={(region) => {
+          onManualInteraction()
+          setRegionFocus((current) => ({ region, revision: (current?.revision ?? 0) + 1 }))
+        }}
+        onStatewide={() => {
+          onManualInteraction()
+          setRegionFocus(null)
+        }} />
+      <RecenterMapOnSidebarClose touring={!!activeRegion} />
       <TourMapEvents exitRevision={tourExitRevision} onManualInteraction={() => {
         setConnectionSelection(null)
         setMapPopupRequest(null)
         onClearSelection()
       }} />
-      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeTourRegion}
+      <MepRegionsLayer showRegionLabels={showRegionLabels} activeRegion={activeRegion}
+        fitRevision={regionFocus?.revision}
         onRegionStatus={onRegionStatus} onGeometry={setRegionGeometry} />
       <OpenSelectedMapSelectionPopup
         popupLocation={activeConnection ? undefined : popupLocation}
@@ -1415,7 +1706,7 @@ export default function NystarLeafletMap({
         name="city-labels"
         style={{ zIndex: 650, pointerEvents: "none" }}
       >
-        {showCityLabels && cityLabels.map(({ name, position, offset }) => (
+        {showCityLabels && !effectiveCategory && cityLabels.map(({ name, position, offset }) => (
           <Marker
             key={name}
             position={position}
@@ -1430,30 +1721,62 @@ export default function NystarLeafletMap({
           />
         ))}
       </Pane>
+      {effectiveCategory && <PointLabels labels={pointLabels} />}
       </MapContainer>
-        {activeTourRegion && (
-          <TourInset geometry={regionGeometry} activeRegion={activeTourRegion}
+        {activeRegion && (
+          <TourInset geometry={regionGeometry} activeRegion={activeRegion}
+            label={activeTourRegion ? "Statewide tour overview" : "Statewide overview"}
             assetId={selectedProgramId} locations={groupedLocations}
             programConnections={programConnections}
-            error={regionStatus?.region === activeTourRegion ? regionStatus.error : null} />
+            error={regionStatus?.region === activeRegion ? regionStatus.error : null} />
         )}
-        {showMapLegend && !activeTourRegion && (
-          <aside className="network-map-legend" aria-label="Map legend">
+        {showMapLegend && !activeRegion && (
+          <aside
+            className="network-map-legend"
+            aria-label="Map legend"
+            onKeyDown={(event) => {
+              if (event.key === "Escape") {
+                event.preventDefault()
+                setLegendPreview(null)
+                onLegendCategoryChange(null)
+              }
+            }}
+          >
             <div className="network-map-legend__logo">
-              <Image src="/nystar-logo.svg" alt="NYSTAR" width={910} height={310} loading="eager" />
+              <Image src="/nystar-logo-new.jpeg" alt="New York State Division of Science, Technology & Innovation, a division of Empire State Development" width={561} height={401} loading="eager" />
             </div>
             <h2 className="network-map-legend__title">NYSTAR Programs</h2>
             <ul className="network-map-legend__items">
               {mapCategories.map((category) => (
-                <li className="network-map-legend__item" key={category}>
-                  <span
-                    className="network-map-legend__star"
-                    style={{
-                      "--marker-color": CATEGORY_COLORS[category] ?? "var(--network-customer-marker)",
-                    } as React.CSSProperties}
-                    aria-hidden="true"
-                  />
-                  <span>{category}</span>
+                <li key={category}>
+                  <button
+                    type="button"
+                    className="network-map-legend__item network-map-legend__category"
+                    title="Hover to preview; click to toggle this category filter"
+                    aria-pressed={legendCategory === category}
+                    data-preview={previewCategory === category}
+                    onPointerEnter={(event) => {
+                      if (event.pointerType !== "touch") {
+                        setLegendPreview({ category, revision: selectionRevision, selected: legendCategory })
+                      }
+                    }}
+                    onPointerLeave={() => setLegendPreview(null)}
+                    onFocus={() => setLegendPreview({ category, revision: selectionRevision, selected: legendCategory })}
+                    onBlur={() => setLegendPreview(null)}
+                    onClick={() => {
+                      setLegendPreview(null)
+                      onLegendCategoryChange(legendCategory === category ? null : category)
+                    }}
+                  >
+                    <span
+                      className="network-map-legend__star"
+                      style={{
+                        "--marker-color": CATEGORY_COLORS[category] ?? "var(--network-customer-marker)",
+                      } as React.CSSProperties}
+                      aria-hidden="true"
+                    />
+                    <span>{category.replace(/\bNew York\b/g, "NY")}</span>
+                  </button>
                 </li>
               ))}
             </ul>

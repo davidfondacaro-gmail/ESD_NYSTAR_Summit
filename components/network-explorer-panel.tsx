@@ -284,8 +284,9 @@ export default function NetworkExplorerPanel({
   const [selectionRevision, setSelectionRevision] = useState(0)
   const [showRegionLabels, setShowRegionLabels] = useState(true)
   const [showCityLabels, setShowCityLabels] = useState(true)
-  const [showZoomControls, setShowZoomControls] = useState(false)
+  const [showZoomControls, setShowZoomControls] = useState(true)
   const [showMapLegend, setShowMapLegend] = useState(true)
+  const [legendCategory, setLegendCategory] = useState<string | null>(null)
   const [clusterMarkers, setClusterMarkers] = useState(false)
   const [showTour, setShowTour] = useState(true)
   const [showPartners, setShowPartners] = useState(true)
@@ -313,6 +314,26 @@ export default function NetworkExplorerPanel({
     interruptTour()
     setRecentConnections([])
     setPopupDismissRevision((revision) => revision + 1)
+  }
+
+  function showSavedProgramConnections(connections: RecentConnection[]) {
+    setRecentConnections(connections)
+    if (!connections.length) return
+    setSelectedProgramId(connections[0].fromAssetId)
+    setSelectedPartnerName("")
+    setSelectionRevision((revision) => revision + 1)
+  }
+
+  function showSavedPartnerConnections(
+    connections: RecentConnection[],
+    partnerName: string
+  ) {
+    setRecentConnections(connections)
+    if (!connections.length) return
+    setSelectedPartnerName(partnerName)
+    setSelectedProgramId("")
+    setShowPartners(true)
+    setSelectionRevision((revision) => revision + 1)
   }
 
   function connectFromMap(programId: string, sidebarExpanded: boolean) {
@@ -402,6 +423,7 @@ export default function NetworkExplorerPanel({
     setSelectionRevision((revision) => revision + 1)
   }
   function startTour(scope: string) {
+    setLegendCategory(null)
     const stops = scopedTourStops(tourStops, scope)
     setTour({
       scope,
@@ -483,7 +505,7 @@ export default function NetworkExplorerPanel({
                   Making Connections Map
                 </h1>
                 <p className="text-sm text-muted-foreground">
-                  The NYSTSAR Innovation Network
+                  The NYSTAR Innovation Network
                 </p>
               </div>
               <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
@@ -518,6 +540,7 @@ export default function NetworkExplorerPanel({
                   labelledBy="find-program-heading"
                   value={selectedProgramId}
                   onValueChange={(value) => {
+                    setLegendCategory(null)
                     interruptTour()
                     setRecentConnections([])
                     setSelectedProgramId(value)
@@ -537,7 +560,7 @@ export default function NetworkExplorerPanel({
                     locations={locations}
                     programConnections={programConnections}
                     onStart={startConnectionFlow}
-                    onSaved={setRecentConnections}
+                    onSaved={showSavedProgramConnections}
                     open={connectDrawerOpen}
                     onOpenChange={setConnectDrawerOpen}
                   />
@@ -574,6 +597,7 @@ export default function NetworkExplorerPanel({
                     labelledBy="find-partner-heading"
                     value={selectedPartnerName}
                     onValueChange={(value) => {
+                      setLegendCategory(null)
                       interruptTour()
                       setRecentConnections([])
                       setSelectedPartnerName(value)
@@ -586,7 +610,7 @@ export default function NetworkExplorerPanel({
                     regions={regions}
                     partners={innovationPartners}
                     onStart={startConnectionFlow}
-                    onSaved={setRecentConnections}
+                    onSaved={showSavedPartnerConnections}
                     trigger={
                       <Button
                         type="button"
@@ -610,7 +634,7 @@ export default function NetworkExplorerPanel({
                       open={partnerConnectionsOpen}
                       onOpenChange={setPartnerConnectionsOpen}
                       onStart={startConnectionFlow}
-                      onSaved={setRecentConnections}
+                      onSaved={showSavedPartnerConnections}
                       trigger={
                         <Button
                           type="button"
@@ -758,7 +782,10 @@ export default function NetworkExplorerPanel({
               {
                 label: "Legend",
                 checked: showMapLegend,
-                onCheckedChange: setShowMapLegend,
+                onCheckedChange: (visible) => {
+                  setShowMapLegend(visible)
+                  if (!visible) setLegendCategory(null)
+                },
               },
             ]}
             app={[
@@ -819,6 +846,8 @@ export default function NetworkExplorerPanel({
           selectionRevision={selectionRevision}
           showZoomControls={showZoomControls}
           showMapLegend={showMapLegend}
+          legendCategory={legendCategory}
+          onLegendCategoryChange={setLegendCategory}
           clusterMarkers={clusterMarkers}
           showRegionLabels={showRegionLabels}
           showCityLabels={showCityLabels}
