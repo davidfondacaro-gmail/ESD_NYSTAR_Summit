@@ -26,6 +26,22 @@ import type { NystarProgramGroup } from "@/lib/nystar-locations"
 
 export type ProgramTreeGrouping = "type" | "region"
 
+const nameCollator = new Intl.Collator("en", {
+  sensitivity: "base",
+  numeric: true,
+})
+
+function sortGroups(groups: NystarProgramGroup[]) {
+  return [...groups]
+    .sort((a, b) => nameCollator.compare(a.name, b.name))
+    .map((group) => ({
+      ...group,
+      programs: [...group.programs].sort((a, b) =>
+        nameCollator.compare(a.name, b.name)
+      ),
+    }))
+}
+
 export default function NystarProgramTree({
   categories,
   regions,
@@ -96,7 +112,7 @@ export default function NystarProgramTree({
         </p>
       </div>
       <ul className="flex flex-col gap-2">
-        {(groupingMode === "type" ? categories : regions).map((group) => {
+        {sortGroups(groupingMode === "type" ? categories : regions).map((group) => {
           const open = openGroups.has(group.name)
           return (
             <li key={`${groupingMode}-${group.name}`}>
