@@ -316,6 +316,26 @@ export default function NetworkExplorerPanel({
     setPopupDismissRevision((revision) => revision + 1)
   }
 
+  function showSavedProgramConnections(connections: RecentConnection[]) {
+    setRecentConnections(connections)
+    if (!connections.length) return
+    setSelectedProgramId(connections[0].fromAssetId)
+    setSelectedPartnerName("")
+    setSelectionRevision((revision) => revision + 1)
+  }
+
+  function showSavedPartnerConnections(
+    connections: RecentConnection[],
+    partnerName: string
+  ) {
+    setRecentConnections(connections)
+    if (!connections.length) return
+    setSelectedPartnerName(partnerName)
+    setSelectedProgramId("")
+    setShowPartners(true)
+    setSelectionRevision((revision) => revision + 1)
+  }
+
   function connectFromMap(programId: string, sidebarExpanded: boolean) {
     if (programId !== selectedProgramId) {
       setSelectedProgramId(programId)
@@ -540,7 +560,7 @@ export default function NetworkExplorerPanel({
                     locations={locations}
                     programConnections={programConnections}
                     onStart={startConnectionFlow}
-                    onSaved={setRecentConnections}
+                    onSaved={showSavedProgramConnections}
                     open={connectDrawerOpen}
                     onOpenChange={setConnectDrawerOpen}
                   />
@@ -590,7 +610,7 @@ export default function NetworkExplorerPanel({
                     regions={regions}
                     partners={innovationPartners}
                     onStart={startConnectionFlow}
-                    onSaved={setRecentConnections}
+                    onSaved={showSavedPartnerConnections}
                     trigger={
                       <Button
                         type="button"
@@ -614,7 +634,7 @@ export default function NetworkExplorerPanel({
                       open={partnerConnectionsOpen}
                       onOpenChange={setPartnerConnectionsOpen}
                       onStart={startConnectionFlow}
-                      onSaved={setRecentConnections}
+                      onSaved={showSavedPartnerConnections}
                       trigger={
                         <Button
                           type="button"

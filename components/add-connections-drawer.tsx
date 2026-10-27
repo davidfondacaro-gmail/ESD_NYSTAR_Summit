@@ -73,7 +73,7 @@ export default function AddConnectionsDrawer({
   regions: NystarProgramGroup[]
   partners: string[]
   onStart?: () => void
-  onSaved?: (connections: RecentConnection[]) => void
+  onSaved?: (connections: RecentConnection[], partnerName: string) => void
   trigger?: React.ReactElement
   existingPartnerName?: string
   connectedAssetIds?: string[]
@@ -227,7 +227,8 @@ export default function AddConnectionsDrawer({
                   },
                 ]
               : []
-          })
+          }),
+          existingPartnerName ?? details.organizationName.trim()
         )
       }
       toast.add({
