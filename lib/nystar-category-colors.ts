@@ -3,6 +3,7 @@ export const CATEGORY_COLORS: Record<string, string> = {
   "Centers for Advanced Technology": "#0072b2",
   "Centers of Excellence": "#e69f00",
   "Innovation Hot Spot": "#009e73",
+  "Innovation Law Center": "#8c8c00",
   "New York Manufacturing Extension Partnership": "#cc79a7",
   "New York State Accelerators and Competitions": "#d55e00",
   "NY Fashion Innovation Center": "#7b4fb8",
