@@ -1450,7 +1450,7 @@ export default function NystarLeafletMap({
     if (organizations.length === 0) return null
     return (
       <section className="network-popup__connections" aria-label="Connected organizations">
-        <h3 className="network-popup__primary">Connections</h3>
+        <h3 className="network-popup__primary">Connections ({organizations.length})</h3>
         <ul className="network-popup__connection-list">
           {organizations.map((organization) => (
             <li className="network-popup__connection" key={`${organization.kind}:${organization.id}`}>
@@ -1780,18 +1780,6 @@ export default function NystarLeafletMap({
                 </li>
               ))}
             </ul>
-            {legendCategory && (
-              <button
-                type="button"
-                className="network-map-legend__clear"
-                onClick={() => {
-                  setLegendPreview(null)
-                  onLegendCategoryChange(null)
-                }}
-              >
-                Clear filter
-              </button>
-            )}
             <h2 className="network-map-legend__title network-map-legend__title--section">
               Innovation Partners
             </h2>
