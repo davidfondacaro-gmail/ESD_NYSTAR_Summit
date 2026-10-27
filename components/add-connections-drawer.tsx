@@ -35,6 +35,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import MarkAllConnectionTypes from "@/components/mark-all-connection-types"
 import type { NystarProgramGroup } from "@/lib/nystar-locations"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { cn } from "@/lib/utils"
@@ -449,6 +450,22 @@ export default function AddConnectionsDrawer({
                         ({selectedProgramDetails.length})
                       </span>
                     </div>
+                    {selectedProgramDetails.length > 1 && (
+                      <MarkAllConnectionTypes
+                        ids={selectedProgramDetails.map((program) => program.id)}
+                        types={connectionTypes}
+                        onMarkAll={(type) =>
+                          setConnectionTypes(
+                            new Map(
+                              selectedProgramDetails.map((program) => [
+                                program.id,
+                                type,
+                              ])
+                            )
+                          )
+                        }
+                      />
+                    )}
                     <ol className="list-decimal pl-6 marker:text-muted-foreground">
                       {selectedProgramDetails.map((program) => (
                         <li key={program.id} className="pl-1">

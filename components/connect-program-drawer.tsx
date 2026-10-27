@@ -42,6 +42,7 @@ import { SIDEBAR_WIDTH } from "@/components/ui/sidebar"
 import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/toast"
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
+import MarkAllConnectionTypes from "@/components/mark-all-connection-types"
 import { categoryColor } from "@/lib/nystar-category-colors"
 import { normalizeOrganizationName } from "@/lib/organization-name"
 import { existingConnectionTargets } from "@/lib/network-connections"
@@ -574,6 +575,20 @@ export default function ConnectProgramDrawer({
                   </span>
                   <Separator className="min-w-0 flex-1" />
                 </div>
+                {isProgramConnection && targetPrograms.length > 1 && (
+                  <MarkAllConnectionTypes
+                    ids={targetPrograms.map((program) => program.id)}
+                    types={programConnectionTypes}
+                    disabled={isSaving}
+                    onMarkAll={(type) =>
+                      setProgramConnectionTypes(
+                        new Map(
+                          targetPrograms.map((program) => [program.id, type])
+                        )
+                      )
+                    }
+                  />
+                )}
                 {isProgramConnection && (
                   <ol className="list-decimal pl-6 marker:text-muted-foreground">
                     {targetPrograms.map((program) => (
