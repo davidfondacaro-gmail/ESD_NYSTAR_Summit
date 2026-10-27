@@ -107,9 +107,7 @@ export default function AddConnectionsDrawer({
   )
   const [skippedConnections, setSkippedConnections] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [hasSubmitted, setHasSubmitted] = useState(false)
   const [formError, setFormError] = useState("")
-  const [formMessage, setFormMessage] = useState("")
 
   function resetForm() {
     setStep(firstStep)
@@ -127,9 +125,13 @@ export default function AddConnectionsDrawer({
     setOpenCategories(new Set())
     setSkippedConnections(false)
     setIsSubmitting(false)
-    setHasSubmitted(false)
     setFormError("")
-    setFormMessage("")
+  }
+
+  function closeDrawer() {
+    setDrawerOpen(false)
+    onOpenChange?.(false)
+    resetForm()
   }
 
   function updateDetails(event: ChangeEvent<HTMLInputElement>) {
@@ -230,16 +232,13 @@ export default function AddConnectionsDrawer({
       toast.add({
         title: skippedConnections
           ? "Company added, thanks!"
-          : "Connection added, thanks!",
+          : selectedPrograms.size > 1
+            ? "Connections added, thanks!"
+            : "Connection added, thanks!",
         type: "success",
       })
 
-      setHasSubmitted(true)
-      setFormMessage(
-        existingPartnerName
-          ? `NYSTAR connections were added for ${existingPartnerName}.`
-          : `${details.organizationName} was added to the network.`
-      )
+      closeDrawer()
       router.refresh()
     } catch (error) {
       setFormError(
@@ -382,7 +381,7 @@ export default function AddConnectionsDrawer({
                 setSkippedConnections(true)
                 setStep(3)
               }}
-              disabled={isSubmitting || hasSubmitted}
+              disabled={isSubmitting}
             >
               Skip this step
               <ChevronRight data-icon="inline-end" />
@@ -633,11 +632,6 @@ export default function AddConnectionsDrawer({
               {formError}
             </p>
           )}
-          {formMessage && (
-            <p className="px-6 pt-3 text-sm text-foreground" role="status">
-              {formMessage}
-            </p>
-          )}
           <DrawerFooter className="gap-3 border-t px-6 py-4 pt-4">
             {duplicateWarning && (
               <Alert variant="warning">
@@ -680,7 +674,7 @@ export default function AddConnectionsDrawer({
                       size="lg"
                       className="min-w-24"
                       onClick={() => setStep(1)}
-                      disabled={isSubmitting || hasSubmitted}
+                      disabled={isSubmitting}
                     >
                       Back
                     </Button>
@@ -693,7 +687,6 @@ export default function AddConnectionsDrawer({
                     disabled={
                       selectedPrograms.size === 0 ||
                       isSubmitting ||
-                      hasSubmitted ||
                       Boolean(duplicateWarning)
                     }
                   >
@@ -708,7 +701,7 @@ export default function AddConnectionsDrawer({
                     size="lg"
                     className="min-w-24"
                     onClick={() => setStep(2)}
-                    disabled={isSubmitting || hasSubmitted}
+                    disabled={isSubmitting}
                   >
                     Back
                   </Button>
@@ -720,19 +713,14 @@ export default function AddConnectionsDrawer({
                     disabled={
                       (!skippedConnections && !canSubmit) ||
                       Boolean(duplicateWarning) ||
-                      isSubmitting ||
-                      hasSubmitted
+                      isSubmitting
                     }
                   >
                     {isSubmitting
                       ? "Saving…"
-                      : hasSubmitted
-                        ? skippedConnections
-                          ? "Saved"
-                          : "Added"
-                        : skippedConnections
-                          ? "Save"
-                          : "Submit"}
+                      : skippedConnections
+                        ? "Save"
+                        : "Submit"}
                   </Button>
                 </>
               )}
