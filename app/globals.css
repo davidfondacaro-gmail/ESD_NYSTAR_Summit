@@ -551,12 +551,12 @@ body {
 
 .network-map-legend__category:hover,
 .network-map-legend__category[data-preview="true"] {
-  background: var(--network-paper);
+  background: var(--network-map-bg);
 }
 
 .network-map-legend__category[aria-pressed="true"] {
   border-color: var(--network-ink);
-  background: var(--network-paper);
+  background: var(--network-map-bg);
   font-weight: 700;
 }
 
