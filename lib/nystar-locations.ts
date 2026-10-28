@@ -5,6 +5,7 @@ import { join } from "node:path"
 
 import Papa from "papaparse"
 import zipcodes from "zipcodes"
+import { nystarCoordinateOverride } from "./nystar-coordinate-override"
 
 export type NystarAsset = {
   id: string
@@ -78,6 +79,8 @@ export type NystarNetworkData = {
 }
 
 type NystarCsvRow = {
+  XLongitute?: string
+  YLatitude?: string
   ID: string
   Region: string
   "NYSTAR Program Category": string
@@ -239,13 +242,18 @@ export async function getNystarNetworkData(): Promise<NystarNetworkData> {
     const state = row.State?.trim() ?? ""
     const zipCode = row["ZIP Code"]?.trim() ?? ""
 
-    if (!id || !name || state !== "NY" || !/^\d{5}$/.test(zipCode)) {
+    if (!id || !name || state !== "NY") {
       continue
     }
 
-    const coordinates = zipcodes.lookup(zipCode)
+    const override = nystarCoordinateOverride(row)
+    const zipCoordinates = /^\d{5}$/.test(zipCode)
+      ? zipcodes.lookup(zipCode)
+      : undefined
+    const coordinates =
+      override ?? (zipCoordinates?.state === "NY" ? zipCoordinates : null)
 
-    if (!coordinates || coordinates.state !== "NY") {
+    if (!coordinates) {
       continue
     }
 

@@ -20,6 +20,8 @@ const mapFields = [
   "City",
   "State",
   "ZIP Code",
+  "XLongitute",
+  "YLatitude",
   "Address Confidence",
   "Address Verification Note",
 ]
