@@ -144,7 +144,8 @@ export default function NystarProgramTree({
                   <FieldGroup className="gap-1">
                     {group.programs.map((program) => {
                       const checkboxId = `${idPrefix}${program.id}`
-                      const disabled = disabledIds?.has(program.id) ?? false
+                      const connected = connectedIds?.has(program.id) ?? false
+                      const disabled = connected || (disabledIds?.has(program.id) ?? false)
                       return (
                         <Field
                           key={program.id}
@@ -154,7 +155,7 @@ export default function NystarProgramTree({
                         >
                           <Checkbox
                             id={checkboxId}
-                            checked={selectedIds.has(program.id)}
+                            checked={connected || selectedIds.has(program.id)}
                             disabled={disabled}
                             onCheckedChange={(checked) =>
                               onToggle(program.id, checked === true)
@@ -174,15 +175,17 @@ export default function NystarProgramTree({
                                   : program.details}
                               </FieldDescription>
                             )}
-                            {disabled ? (
+                            {connected ? (
+                              <FieldDescription className="text-xs">
+                                <span className="text-brand-blue-primary">
+                                  Already connected!
+                                </span>
+                              </FieldDescription>
+                            ) : disabled ? (
                               <FieldDescription className="text-xs">
                                 {disabledNote}
                               </FieldDescription>
-                            ) : connectedIds?.has(program.id) && (
-                              <FieldDescription className="text-xs">
-                                Already connected
-                              </FieldDescription>
-                            )}
+                            ) : null}
                           </FieldContent>
                         </Field>
                       )
