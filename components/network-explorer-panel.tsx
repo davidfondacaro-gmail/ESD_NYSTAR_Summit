@@ -508,7 +508,7 @@ export default function NetworkExplorerPanel({
                   The NYSTAR Innovation Network
                 </p>
               </div>
-              <SidebarTrigger className="ml-auto" title="Toggle sidebar" />
+              <SidebarTrigger className="ml-auto" />
             </SidebarHeader>
             <SidebarContent className="min-h-0 gap-3 px-3 py-3 group-data-[collapsible=icon]:px-2">
               <CollapsedExplorerNavigation
@@ -830,7 +830,6 @@ export default function NetworkExplorerPanel({
       <SidebarInset className="network-map-panel">
         <SidebarTrigger
           className="network-map-sidebar-trigger md:hidden"
-          title="Toggle sidebar"
         />
         <SidebarAwareNetworkMap
           onConnectProgram={connectFromMap}

@@ -18,6 +18,7 @@ import {
 
 import { useSidebar } from "@/components/ui/sidebar"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Link, Pentagon } from "lucide-react"
 import {
   DropdownMenu,
@@ -241,23 +242,32 @@ function MapToolbar({ regions, activeRegion, onSelectRegion, onStatewide }: {
 
   return createPortal(
     <>
-      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-in"
-        aria-label="Zoom in" title="Zoom in" disabled={zoom >= map.getMaxZoom()}
+      <Tooltip>
+      <TooltipTrigger render={<button type="button" />} className="nystar-map-toolbar__button leaflet-control-zoom-in"
+        aria-label="Zoom in" disabled={zoom >= map.getMaxZoom()}
         onClick={() => map.zoomIn()}>
         <span aria-hidden="true">+</span>
-      </button>
-      <button type="button" className="nystar-map-toolbar__button leaflet-control-zoom-out"
-        aria-label="Zoom out" title="Zoom out" disabled={zoom <= map.getMinZoom()}
+      </TooltipTrigger>
+      <TooltipContent side="left">Zoom in</TooltipContent>
+      </Tooltip>
+      <Tooltip>
+      <TooltipTrigger render={<button type="button" />} className="nystar-map-toolbar__button leaflet-control-zoom-out"
+        aria-label="Zoom out" disabled={zoom <= map.getMinZoom()}
         onClick={() => map.zoomOut()}>
         <span aria-hidden="true">&#x2212;</span>
-      </button>
+      </TooltipTrigger>
+      <TooltipContent side="left">Zoom out</TooltipContent>
+      </Tooltip>
       <DropdownMenu>
+        <Tooltip>
         <DropdownMenuTrigger
-          render={<button type="button" className="nystar-map-toolbar__button" />}
-          aria-label="Zoom to region" title="Zoom to region" disabled={regions.length === 0}
+          render={<TooltipTrigger render={<button type="button" />} className="nystar-map-toolbar__button" />}
+          aria-label="Zoom to region" disabled={regions.length === 0}
         >
           <Pentagon aria-hidden="true" className="nystar-map-toolbar__icon" />
         </DropdownMenuTrigger>
+        <TooltipContent side="left">Zoom to region</TooltipContent>
+        </Tooltip>
         <DropdownMenuContent side="left" align="end" sideOffset={8} className="w-auto min-w-48">
           <DropdownMenuGroup>
             <DropdownMenuLabel>Zoom to region</DropdownMenuLabel>
@@ -271,10 +281,13 @@ function MapToolbar({ regions, activeRegion, onSelectRegion, onStatewide }: {
           </DropdownMenuGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      <button type="button" className="nystar-map-toolbar__button"
-        aria-label="Statewide view" title="Statewide view" onClick={onStatewide}>
+      <Tooltip>
+      <TooltipTrigger render={<button type="button" />} className="nystar-map-toolbar__button"
+        aria-label="Statewide view" onClick={onStatewide}>
         <NyStateIcon />
-      </button>
+      </TooltipTrigger>
+      <TooltipContent side="left">Statewide view</TooltipContent>
+      </Tooltip>
     </>,
     element
   )

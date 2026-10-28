@@ -5,6 +5,7 @@ import { ArrowLeft, ExternalLink, Settings } from "lucide-react"
 import { useTheme } from "next-themes"
 
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import {
   Field,
   FieldGroup,
@@ -29,20 +30,23 @@ const serverSnapshot = () => false
 export function SettingsButton({ onOpen }: { onOpen: () => void }) {
   const { setOpen } = useSidebar()
   return (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon"
-      aria-label="Settings"
-      title="Settings"
-      data-network-settings-trigger
-      onClick={() => {
-        setOpen(true)
-        onOpen()
-      }}
-    >
-      <Settings aria-hidden="true" />
-    </Button>
+    <Tooltip>
+      <Button
+        render={<TooltipTrigger />}
+        type="button"
+        variant="ghost"
+        size="icon"
+        aria-label="Settings"
+        data-network-settings-trigger
+        onClick={() => {
+          setOpen(true)
+          onOpen()
+        }}
+      >
+        <Settings aria-hidden="true" />
+      </Button>
+      <TooltipContent side="bottom">Settings</TooltipContent>
+    </Tooltip>
   )
 }
 
