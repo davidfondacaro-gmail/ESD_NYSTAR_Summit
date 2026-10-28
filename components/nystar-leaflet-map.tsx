@@ -37,7 +37,7 @@ import type {
 import type { RecentConnection } from "@/lib/recent-connection"
 import { coveredConnectionLength, overlapArea } from "@/lib/map-popup-placement"
 import { connectedOrganizationsForPopup, connectionKey, connectionsForPopup, tourInsetData } from "@/lib/network-connections"
-import { filterLegendLocations } from "@/lib/network-legend"
+import { CUSTOMER_LEGEND_FILTER, filterLegendLocations } from "@/lib/network-legend"
 import { calloutAnchor, layoutPointLabels, type Box, type PlacedLabel } from "@/lib/map-point-labels"
 
 const DEFAULT_MAP_CENTER: L.LatLngExpression = [42.7462, -75.7154]
@@ -1797,12 +1797,32 @@ export default function NystarLeafletMap({
               Innovation Partners
             </h2>
             <ul className="network-map-legend__items">
-              <li className="network-map-legend__item">
+              <li>
+                <button
+                  type="button"
+                  className="network-map-legend__item network-map-legend__category"
+                  title="Hover to preview; click to toggle this category filter"
+                  aria-pressed={legendCategory === CUSTOMER_LEGEND_FILTER}
+                  data-preview={previewCategory === CUSTOMER_LEGEND_FILTER}
+                  onPointerEnter={(event) => {
+                    if (event.pointerType !== "touch") {
+                      setLegendPreview({ category: CUSTOMER_LEGEND_FILTER, revision: selectionRevision, selected: legendCategory })
+                    }
+                  }}
+                  onPointerLeave={() => setLegendPreview(null)}
+                  onFocus={() => setLegendPreview({ category: CUSTOMER_LEGEND_FILTER, revision: selectionRevision, selected: legendCategory })}
+                  onBlur={() => setLegendPreview(null)}
+                  onClick={() => {
+                    setLegendPreview(null)
+                    onLegendCategoryChange(legendCategory === CUSTOMER_LEGEND_FILTER ? null : CUSTOMER_LEGEND_FILTER)
+                  }}
+                >
                 <span
                   className="network-map-legend__dot"
                   aria-hidden="true"
                 />
                 <span>Customer organization</span>
+                </button>
               </li>
             </ul>
             <h2 className="network-map-legend__title network-map-legend__title--section">

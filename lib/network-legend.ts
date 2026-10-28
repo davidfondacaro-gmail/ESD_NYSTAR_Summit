@@ -1,5 +1,7 @@
 import type { NystarLocationGroup } from "./nystar-locations"
 
+export const CUSTOMER_LEGEND_FILTER = "__customer_organizations__"
+
 export type LegendFilterExtras = {
   assetIds: ReadonlySet<string>
   customerIds: ReadonlySet<string>
@@ -12,6 +14,7 @@ export function filterLegendLocations(
   extras?: LegendFilterExtras
 ): NystarLocationGroup[] {
   if (!category) return locations
+  const customersOnly = category === CUSTOMER_LEGEND_FILTER
   const assetIds = new Set(
     locations.flatMap((location) =>
       location.assets
@@ -27,6 +30,7 @@ export function filterLegendLocations(
       ),
       customers: location.customers.filter(
         (customer) =>
+          customersOnly ||
           !!extras?.customerIds.has(customer.id) ||
           customer.connections.some((connection) => assetIds.has(connection.assetId))
       ),

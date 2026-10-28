@@ -1,6 +1,6 @@
 import assert from "node:assert/strict"
 import test from "node:test"
-import { filterLegendLocations } from "../lib/network-legend.ts"
+import { CUSTOMER_LEGEND_FILTER, filterLegendLocations } from "../lib/network-legend.ts"
 
 const locations = [
   {
@@ -40,6 +40,24 @@ test("clearing restores the original dataset and unknown categories show no poin
   assert.equal(filterLegendLocations(locations, null), locations)
   assert.deepEqual(filterLegendLocations(locations, "missing"), [])
   assert.deepEqual(filterLegendLocations([], "CAT"), [])
+})
+
+test("customer filtering includes connected and unconnected customers but no programs", () => {
+  const original = structuredClone(locations)
+  const result = filterLegendLocations(locations, CUSTOMER_LEGEND_FILTER)
+  assert.deepEqual(result.flatMap((location) => location.assets), [])
+  assert.deepEqual(result.flatMap((location) => location.customers.map((c) => c.id)),
+    ["existing", "other", "desired", "unconnected"])
+  assert.deepEqual(locations, original)
+})
+
+test("customer filtering reveals selected customers' connected programs through extras", () => {
+  const result = filterLegendLocations(locations, CUSTOMER_LEGEND_FILTER, {
+    assetIds: new Set(["a"]),
+    customerIds: new Set(["existing"]),
+  })
+  assert.deepEqual(result.flatMap((location) => location.assets.map((a) => a.id)), ["a"])
+  assert.equal(result.flatMap((location) => location.customers).length, 4)
 })
 
 test("extras keep selected points and their connections visible outside the category", () => {
